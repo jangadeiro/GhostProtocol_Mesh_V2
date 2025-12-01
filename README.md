@@ -23,7 +23,7 @@ Prerequisites: Python 3.9+, libbluetooth-dev (for Linux).
 Bash
 
 # Clone the repository
-git clone https://github.com/jangadeiro/GhostProtocol_Mesh_V5.git
+git clone https://github.com/jangadeiro/GhostProtocol_Mesh_V2.git
 cd ghostprotocol
 
 # Install dependencies
@@ -73,7 +73,7 @@ Gereksinimler: Python 3.9+, libbluetooth-dev (Linux için).
 Bash
 
 # Depoyu klonlayın
-git clone https://github.com/jangadeiro/GhostProtocol_Mesh_V5.git
+git clone https://github.com/jangadeiro/GhostProtocol_Mesh_V2.git
 cd ghostprotocol
 
 # Bağımlılıkları yükleyin
