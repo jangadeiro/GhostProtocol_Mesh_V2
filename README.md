@@ -52,6 +52,7 @@ Launch: Run docker-compose up -d.
 Firewall: Ensure ports 5000 (TCP) and 9999 (UDP) are open.
 
 🇹🇷 Türkçe Proje Özeti
+
 GhostProtocol, internet bağlantısı olmasa dahi çalışabilmek üzere tasarlanmış, Proof-of-Work (PoW) tabanlı bir blok zinciridir. Merkeziyetsiz web sitelerine (.ghost alan adları) ev sahipliği yapar ve Wi-Fi UDP Yayını ile Bluetooth RFCOMM kullanarak verileri cihazdan cihaza taşıyan bir örgü ağı (mesh network) oluşturur.
 
 Temel Özellikler
