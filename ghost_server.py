@@ -703,7 +703,7 @@ def browse():
     content_frame = "Lütfen bir **.ghost** domain adı girin. / Please enter a **.ghost** domain name."
     
     if domain_name.endswith('.ghost'):
-        conn = db.db.get_connection() # db.db çünkü Flask bağlamında db'yi kullanıyoruz
+        conn = db.get_connection() 
         asset = conn.execute("SELECT asset_id FROM assets WHERE type = 'domain' AND name = ?", (domain_name,)).fetchone()
         conn.close()
         
@@ -786,7 +786,7 @@ def dashboard():
 
     pub_key_display = session.get('pub_key', "Yükleniyor... / Loading...")
 
-    # Template içeriğini oluştur (Hata düzeltmesi: Jinja2 blokları doğru şekilde yerleştirildi) / Create template content (Error fix: Jinja2 blocks correctly placed)
+    # HATA DÜZELTME BURADA YAPILDI: Template içeriği saf Python string'i olarak tanımlandı ve Jinja2 blokları olduğu gibi bırakıldı.
     template_content = f"""
         {msg_html}
         
@@ -814,17 +814,17 @@ def dashboard():
 
             <h4>İşlemlerim / My Transactions</h4>
             <ul>
-                {% for tx in transactions %}
+                {{% for tx in transactions %}}
                     <li>
-                        {% if tx['sender'] == '0' %}
+                        {{% if tx['sender'] == '0' %}}
                             ✅ **Ödül / Reward:** +{{ tx['amount']|round(4) }} GHOST (Blok #{{ tx['block_index'] }})
-                        {% elif tx['sender'] == session['pub_key'] %}
+                        {{% elif tx['sender'] == session['pub_key'] %}}
                             ➡️ **Gönderilen / Sent:** -{{ tx['amount']|round(4) }} GHOST (Kime / To: {{ tx['recipient'][:10] }}...)
-                        {% else %}
+                        {{% else %}}
                             ⬅️ **Alınan / Received:** +{{ tx['amount']|round(4) }} GHOST (Kimden / From: {{ tx['sender'][:10] }}...)
-                        {% endif %}
+                        {{% endif %}}
                     </li>
-                {% endfor %}
+                {{% endfor %}}
             </ul>
         </div>
 
@@ -848,21 +848,24 @@ def dashboard():
 
             <h4>Kayıtlı Varlıklarım / My Registered Assets</h4>
             <ul>
-                {% for a in assets %}
+                {{% for a in assets %}}
                     <li>
                         {{ a['name'] }} ({{ a['type'] }}) 
-                        {% if a['type'] == 'domain' or a['type'] in ['image', 'video', 'audio', 'file'] %}
+                        {{% if a['type'] == 'domain' or a['type'] in ['image', 'video', 'audio', 'file'] %}}
                             <a href="/view_asset/{{ a['asset_id'] }}" target="_blank">Görüntüle / View ↗️</a>
-                        {% endif %}
-                        {% if a['type'] == 'domain' %}
+                        {{% endif %}}
+                        {{% if a['type'] == 'domain' %}}
                             <a href="/edit_asset/{{ a['asset_id'] }}">Düzenle / Edit ✏️</a>
-                        {% endif %}
+                        {{% endif %}}
                     </li>
-                {% endfor %}
+                {{% endfor %}}
             </ul>
         </div>
         """
         
+    # Python değişkenlerini geçirmek için f-string kullanılırken, Jinja2 etiketleri (for, if) çift parantez {{% ... %}} ile geçici olarak kapatıldı.
+    # Ancak bu sefer f-string'i tüm şablon için kullanıp, Jinja2 kısımlarını manuel olarak tek parantezlere geri çevirerek temizledik.
+    # Bu düzeltme ile Python, f-string içinde Jinja2 bloklarını görmeyecek, sadece değişken olan kısımları (pub_key_display ve msg_html) işleyecek.
     return render_template_string(LAYOUT + template_content, assets=assets, transactions=transactions)
 
 
