@@ -141,7 +141,7 @@ Erişim: http://SUNUCU_IP_ADRESINIZ:5000
 
 Özellikler: Yüksek erişilebilirlik, Ana blok deposu.
 
-🇹🇷 Önemli Değişiklikler ve Güncellemeler (Key Changes and Updates)
+# 🇹🇷 Önemli Değişiklikler ve Güncellemeler (Key Changes and Updates)
 Bu bölüm, GhostProtocol ağının merkeziyetsizliğini ve işlevselliğini önemli ölçüde artıran son güncellemeleri içerir.
 
 🔥 Varlık Sunumu ve Merkeziyetsizlik İyileştirmeleri (Asset Serving & Decentralization Enhancements)
@@ -162,7 +162,7 @@ Veritabanı Sadeleştirmesi: Düğümün yalnızca blokları ve varlıkları sak
 3. Genel Etki
 Bu değişiklikler, Ghost Mesh Node (GMN) kullanıcılarının, GhostProtocol'e içerik yükleyen kişilerin paylaştığı medyaları veya domainleri, merkezi bir sunucuya gitmeden, doğrudan zincir referansı (Asset ID) üzerinden alıntılayabilmesini sağlar.
 
-🇬🇧 Key Changes and Updates
+# 🇬🇧 Key Changes and Updates
 This section details the latest updates that significantly enhance the decentralization and functionality of the GhostProtocol network.
 
 🔥 Asset Serving & Decentralization Enhancements
@@ -184,5 +184,5 @@ Multi-Language Support: Turkish and English language support was added to the us
 These changes enable Ghost Mesh Node (GMN) users to reference media or domains shared by GhostProtocol content creators directly via the chain reference (Asset ID), without needing to route through a centralized server.
 
 
-⚠️ Disclaimer / Yasal Uyarı
+# ⚠️ Disclaimer / Yasal Uyarı
 GhostProtocol is an experimental software designed for educational and research purposes. Use at your own risk. (GhostProtocol eğitim ve araştırma amaçlı tasarlanmış deneysel bir yazılımdır. Kullanım riski size aittir.)
