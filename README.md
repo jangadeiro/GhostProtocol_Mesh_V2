@@ -146,7 +146,7 @@ Bu bölüm, GhostProtocol ağının merkeziyetsizliğini ve işlevselliğini ön
 
 🔥 Varlık Sunumu ve Merkeziyetsizlik İyileştirmeleri (Asset Serving & Decentralization Enhancements)
 1. ghost_server.py Güncellemeleri
-Merkeziyetsiz Linkleme: Görüntüleme linkleri artık sunucu adresini içermeyen göreceli URL'ler kullanır. Örneğin, "<a href="/view_asset/<asset_id>">" formatı kullanılır. Bu, ağdaki Ghost Mesh Node (GMN) tarafından alıntılamayı destekler.
+Merkeziyetsiz Linkleme: Görüntüleme linkleri artık sunucu adresini içermeyen göreceli URL'ler kullanır. Örneğin, <--<a href="/view_asset/<asset_id>--> formatı kullanılır. Bu, ağdaki Ghost Mesh Node (GMN) tarafından alıntılamayı destekler.
 
 Kopyalama Linkleri: Kullanıcıların kopyaladığı linkler, kullanım kolaylığı için mutlak URL (http://ip:port/view_asset/<asset_id>) olarak kalmaya devam eder.
 
@@ -167,7 +167,7 @@ This section details the latest updates that significantly enhance the decentral
 
 🔥 Asset Serving & Decentralization Enhancements
 1. ghost_server.py Updates
-Decentralized Linking: Viewing links now use relative URLs that do not include the server address. For example, the format "<a href="/view_asset/<asset_id>">" is used. This supports referencing by the Ghost Mesh Node (GMN) across the network.
+Decentralized Linking: Viewing links now use relative URLs that do not include the server address. For example, the format <--<a href="/view_asset/<asset_id>--> is used. This supports referencing by the Ghost Mesh Node (GMN) across the network.
 
 Copy Links: Links copied by users remain absolute URLs (http://ip:port/view_asset/<asset_id>) for ease of use.
 
