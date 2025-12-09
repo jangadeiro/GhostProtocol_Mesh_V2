@@ -48,6 +48,7 @@ GhostProtocol is a Proof-of-Work (PoW) blockchain designed to function as a surv
 
 # 1. Clone the repository
 git clone [https://github.com/jangadeiro/GhostProtocol_Mesh_V2.git](https://github.com/jangadeiro/GhostProtocol_Mesh_V2.git)
+
 cd ghostprotocol
 
 # 2. Install dependencies
@@ -112,6 +113,7 @@ Bash
 
 # 1. Projeyi indirin
 git clone [https://github.com/jangadeiro/GhostProtocol_Mesh_V2.git](https://github.com/jangadeiro/GhostProtocol_Mesh_V2.git)
+
 cd ghostprotocol
 
 # 2. Gerekli kütüphaneleri yükleyin
