@@ -4,86 +4,109 @@ import time
 import sqlite3
 import base64
 import random
-import socket
-import threading
-import sys
+import re
 import logging
-import traceback
 import os
-import requests 
-from flask import Flask, jsonify, request, render_template_string, session, redirect, url_for, Response, send_file
+import requests
 from uuid import uuid4
 from datetime import timedelta
+import socket
 from markupsafe import Markup 
-from jinja2 import DictLoader, Template 
+from typing import Optional, Tuple, Dict, Any, List
+
+# --- CİHAZ ÖZELİNDE MESH/AĞ MODÜLLERİ (Mobil/Gömülü Cihazlar İçin) ---
+# TR: Bluetooth ve WiFi modülleri için yer tutucular. 
+# EN: Placeholders for Bluetooth and WiFi modules.
+# TR: Gerçek uygulamada bu kısımlar pybluez, Bleak veya yerel WiFi API'leri ile değiştirilecektir.
+# EN: In a real application, these parts would be replaced with pybluez, Bleak, or local WiFi APIs.
+try:
+    import bluetooth # Örn. pybluez
+    BLUETOOTH_AVAILABLE = True
+except ImportError:
+    BLUETOOTH_AVAILABLE = False
+    
+try:
+    # WiFi modülü yerine IP/Socket modülü kullanacağız.
+    # Bu, temel IP iletişimini simüle eder.
+    WIFI_AVAILABLE = True 
+except Exception:
+    WIFI_AVAILABLE = False
 
 # --- LOGLAMA / LOGGING ---
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - GMN - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - GhostNode - %(levelname)s - %(message)s')
 logger = logging.getLogger("GhostMeshNode")
 
-# --- YAPILANDIRMA / CONFIGURATION ---
-DB_FILE = os.path.join(os.getcwd(), "ghost_mesh_node.db") 
-GHOST_PORT = 5001 # Mesh Node'lar farklı bir port kullanmalı
+# --- YAPILANDIRMA / CONFIGURATION (Sunucu ile Eşleşmeli) ---
+NODE_ID = hashlib.sha256(socket.gethostname().encode()).hexdigest()[:10]
+DB_FILE = os.path.join(os.getcwd(), f"ghost_node_{NODE_ID}.db") 
+GHOST_SERVER_URL = "http://127.0.0.1:5000"  # TR: Merkezi Sunucu Adresi
 
-# Ana Ağ Omurga Sunucuları (Backbone Nodes)
-KNOWN_PEERS = [
-    "http://46.101.219.46:5000", # Örnek olarak sizin ana sunucunuz
-    # "http://digerozelnode.com:5000",
-]
+# TR: Varlık Ücretleri (ghost_server.py ile Eşleşmeli)
+# EN: Asset Fees (Must match ghost_server.py)
+STORAGE_COST_PER_MB = 0.01       # TR: Veri barındırma ücreti: MB başı 0.01 GHOST
+DOMAIN_REGISTRATION_FEE = 1.0    # TR: 6 Aylık Domain Tescil Ücreti: 1.0 GHOST
+DOMAIN_EXPIRY_SECONDS = 15552000  # 6 Ay / 6 Months
 
-app = Flask(__name__)
-app.secret_key = 'mesh_node_super_secret_key_2024' 
-app.permanent_session_lifetime = timedelta(days=7) 
-app.config['SESSION_COOKIE_SECURE'] = False 
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax' 
-
-# --- ÇOKLU DİL SÖZLÜĞÜ (i18n) ---
+# --- ÇOKLU DİL SÖZLÜĞÜ (Sunucu ile Eşleşmeli) ---
 LANGUAGES = {
     'tr': {
-        'title': "Ghost Mesh Düğümü (Node)",
-        'status_online': "ONLINE", 'status_offline': "OFFLINE",
-        'status_success': "Başarılı", 'status_failed': "Başarısız", 
-        'sync_title': "Ağ Eşitleme", 'sync_btn': "🔄 Ağı Eşitle (Backbone ile)",
-        'sync_status': "Eşitleme Durumu",
-        'sync_success_msg': "Ağ eşitleme başarılı. Yeni uzunluk: {length}. Varlıklar ve Domainler güncellendi.",
-        'sync_no_change': "Daha uzun bir zincir bulunamadı. Mevcut uzunluk: {length}.",
-        'sync_fail': "Ağ eşitleme sırasında genel bir hata oluştu.",
-        'chain_info': "Zincir Bilgisi",
-        'last_block': "Son Blok İndeksi",
-        'asset_count': "Toplam Varlık Sayısı",
-        'domain_count': "Aktif Domain Sayısı",
-        'assets_title': "Yerel Olarak Sunulan Aktif Varlıklar",
-        'asset_name': "Ad / ID", 'asset_type': "Tip", 'asset_action': "İşlem / Link",
-        'action_view': "Gör (Yerel)",
-        'welcome_header': "Ghost Mesh Düğümü Aktif",
-        'welcome_text': "Bu düğüm, GhostProtocol zincirini eşler ve ağdaki varlıkları merkezi sunucuya ihtiyaç duymadan yerel olarak sunar.",
-        'back_to_home': "Ana Sayfaya Dön",
+        'node_name': "Ghost Node", 'search': "Arama", 'register': "Kaydet", 'wallet': "Cüzdan",
+        'domain_title': f"💾 .ghost Kayıt (Ücret: {DOMAIN_REGISTRATION_FEE} GHOST / 6 Ay)",
+        'media_title': f"🖼️ Varlık Yükle (Barındırma Ücreti: {STORAGE_COST_PER_MB} GHOST / MB)",
+        'status_online': "ONLINE", 'status_offline': "OFFLINE", 'status_mesh_active': "Mesh Aktif",
+        'asset_fee': "Ücret", 'asset_expires': "Süre Sonu", 'asset_type': "Tip",
+        'no_pubkey': "Lütfen cüzdan genel anahtarınızı ayarlayın.",
+        'balance': "Bakiye", 'not_enough_balance': "Yetersiz bakiye."
     },
     'en': {
-        'title': "Ghost Mesh Node",
-        'status_online': "ONLINE", 'status_offline': "OFFLINE",
-        'status_success': "Success", 'status_failed': "Failed", 
-        'sync_title': "Network Sync", 'sync_btn': "🔄 Sync Network (with Backbone)",
-        'sync_status': "Sync Status",
-        'sync_success_msg': "Network synchronization successful. New length: {length}. Assets and Domains updated.",
-        'sync_no_change': "No longer chain found. Current length: {length}.",
-        'sync_fail': "A general error occurred during network synchronization.",
-        'chain_info': "Chain Information",
-        'last_block': "Last Block Index",
-        'asset_count': "Total Asset Count",
-        'domain_count': "Active Domain Count",
-        'assets_title': "Locally Served Active Assets",
-        'asset_name': "Name / ID", 'asset_type': "Type", 'asset_action': "Action / Link",
-        'action_view': "View (Local)",
-        'welcome_header': "Ghost Mesh Node Active",
-        'welcome_text': "This node synchronizes the GhostProtocol chain and serves assets locally without needing the central backbone server.",
-        'back_to_home': "Go Back to Home",
+        'node_name': "Ghost Node", 'search': "Search", 'register': "Register", 'wallet': "Wallet",
+        'domain_title': f"💾 .ghost Registration (Fee: {DOMAIN_REGISTRATION_FEE} GHOST / 6 Months)",
+        'media_title': f"🖼️ Upload Asset (Storage Fee: {STORAGE_COST_PER_MB} GHOST / MB)",
+        'status_online': "ONLINE", 'status_offline': "OFFLINE", 'status_mesh_active': "Mesh Active",
+        'asset_fee': "Fee", 'asset_expires': "Expires", 'asset_type': "Type",
+        'no_pubkey': "Please set your wallet public key.",
+        'balance': "Balance", 'not_enough_balance': "Insufficient balance."
     },
+    # Diğer diller kısaltıldı
 }
+DEFAULT_LANG = 'tr'
 
-# --- VERİTABANI YÖNETİCİSİ (Stabil) ---
+# --- YARDIMCI FONKSİYONLAR (Sunucu ile Eşleşmeli) ---
+
+def extract_keywords(content_str):
+    """
+    TR: HTML etiketlerini temizler ve metinden anahtar kelimeleri ayıklar.
+    EN: Cleans HTML tags and extracts keywords from the text.
+    """
+    try:
+        text = re.sub(r'<(script|style).*?>.*?</\1>', '', content_str, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r'<.*?>', ' ', text)
+        text = re.sub(r'[^a-zA-ZğüşıöçĞÜŞİÖÇ ]', ' ', text)
+        words = text.lower().split()
+        stop_words = {'ve', 'ile', 'the', 'and', 'for', 'this', 'bir', 'için', 'or', 'by'}
+        keywords = set([w for w in words if len(w) > 2 and w not in stop_words])
+        return ",".join(list(keywords)[:20])
+    except:
+        return ""
+
+def calculate_asset_fee(size_bytes: int, asset_type: str) -> float:
+    """
+    TR: Varlık tipine göre doğru ücreti (GHOST cinsinden) hesaplar.
+    EN: Calculates the correct fee (in GHOST) based on asset type.
+    """
+    if asset_type == 'domain':
+        # TR: Domain tescilinde boyuttan bağımsız sabit ücret.
+        # EN: Fixed fee for domain registration, regardless of size.
+        return DOMAIN_REGISTRATION_FEE
+    else:
+        # TR: Diğer varlıklar için boyuta bağlı depolama ücreti (MB başına 0.01 GHOST).
+        # EN: Size-dependent storage fee for other assets (0.01 GHOST per MB).
+        return round((size_bytes / (1024 * 1024)) * STORAGE_COST_PER_MB, 4)
+
+# --- VERİTABANI YÖNETİCİSİ / DATABASE MANAGER ---
 class DatabaseManager:
-    # ... (Ghost Server'daki ile aynı init_db, get_connection, create_genesis_block, hash)
+    # TR: SQLite veritabanı işlemlerini yönetir.
+    # EN: Manages SQLite database operations.
     def __init__(self, db_file):
         self.db_file = db_file
         self.init_db()
@@ -94,326 +117,281 @@ class DatabaseManager:
         return conn
 
     def init_db(self):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        # TR: Kullanıcı bilgileri (Cüzdan/Bakiye)
+        cursor.execute('''CREATE TABLE IF NOT EXISTS user_config (key TEXT PRIMARY KEY, value TEXT)''')
+        # TR: Düğümde kayıtlı varlıklar (Yerel Barındırma)
+        cursor.execute('''CREATE TABLE IF NOT EXISTS assets (asset_id TEXT PRIMARY KEY, owner_pub_key TEXT, type TEXT, name TEXT, content BLOB, storage_size INTEGER, creation_time REAL, expiry_time REAL, keywords TEXT)''')
+        
+        # TR: Varsayılan Bakiye ve Anahtar Kontrolü
+        cursor.execute("INSERT OR IGNORE INTO user_config (key, value) VALUES (?, ?)", ('balance', '50.0'))
+        cursor.execute("INSERT OR IGNORE INTO user_config (key, value) VALUES (?, ?)", ('pub_key', NODE_ID + '_KEY'))
+        
+        conn.commit()
+        conn.close()
+
+    def get_config(self, key):
+        conn = self.get_connection()
+        result = conn.execute("SELECT value FROM user_config WHERE key = ?", (key,)).fetchone()
+        conn.close()
+        return result['value'] if result else None
+
+    def set_config(self, key, value):
+        conn = self.get_connection()
+        conn.execute("INSERT OR REPLACE INTO user_config (key, value) VALUES (?, ?)", (key, str(value)))
+        conn.commit()
+        conn.close()
+    
+    def get_assets(self):
+        conn = self.get_connection()
+        assets = conn.execute("SELECT * FROM assets ORDER BY creation_time DESC").fetchall()
+        conn.close()
+        return assets
+
+# --- MESH AĞI İLETİŞİM YÖNETİCİSİ / MESH NETWORK COMMS MANAGER ---
+class MeshCommsManager:
+    def __init__(self, db_manager: DatabaseManager, server_url: str):
+        self.db = db_manager
+        self.server_url = server_url
+        self.node_ip = self._get_local_ip()
+
+    def _get_local_ip(self) -> str:
+        # TR: Yerel IP adresini bulmaya çalışır.
+        # EN: Tries to find the local IP address.
         try:
-            conn = self.get_connection()
-            cursor = conn.cursor()
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+            s.close()
+            return ip
+        except Exception:
+            return "127.0.0.1"
+
+    def send_to_server(self, endpoint: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        # TR: Merkezi sunucuya veri gönderir (IP/HTTP)
+        # EN: Sends data to the central server (IP/HTTP)
+        url = f"{self.server_url}{endpoint}"
+        try:
+            response = requests.post(url, json=data, timeout=5)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Server communication failed ({url}): {e}")
+            return None
+
+    def announce_presence(self):
+        # TR: Merkezi sunucuya varlığını bildirir (Mesh Peer Update)
+        # EN: Announces presence to the central server (Mesh Peer Update)
+        data = {'ip_address': self.node_ip, 'node_id': NODE_ID}
+        self.send_to_server('/peer_update', data)
+        logger.info(f"Node presence announced to server ({self.node_ip}).")
+        
+    # --- MESH (BT/WiFi) YEREL KEŞİF YER TUTUCULARI ---
+
+    def discover_local_peers(self):
+        # TR: Bluetooth ve WiFi üzerinden çevredeki cihazları keşfetme mantığı.
+        # EN: Logic to discover nearby devices via Bluetooth and WiFi.
+        # Bu kısım, gerçek donanım API'leri olmadan sadece loglama yapar.
+        if BLUETOOTH_AVAILABLE:
+            logger.info("Bluetooth discovery initiated...")
+            # bluetooth.discover_devices() gibi fonksiyonlar çağrılır.
+        else:
+            logger.warning("Bluetooth module not found. Skipping BT discovery.")
+        
+        if WIFI_AVAILABLE:
+            logger.info("WiFi/IP scan initiated...")
+            # Yerel ağdaki diğer Ghost Node IP'leri aranır.
+        else:
+            logger.warning("WiFi/IP module not available.")
+
+# --- ASSET MANAGER (Yerel Cihaz İçin) ---
+class NodeAssetManager:
+    def __init__(self, db_manager: DatabaseManager, comms_manager: MeshCommsManager):
+        self.db = db_manager
+        self.comms = comms_manager
+
+    def register_asset(self, asset_type: str, name: str, content: str | bytes, is_file: bool = False) -> Tuple[bool, str]:
+        """
+        TR: Varlığı yerel olarak kaydeder ve ücreti bakiyeden düşer.
+        EN: Registers the asset locally and deducts the fee from the balance.
+        """
+        pub_key = self.db.get_config('pub_key')
+        if not pub_key:
+            return False, "Pubkey not set."
+
+        if isinstance(content, str) and not is_file:
+            content_bytes = content.encode('utf-8')
+            keywords = extract_keywords(content) if asset_type == 'domain' else ""
+        elif is_file:
+            # Dosya okuma simülasyonu (content'in dosya nesnesi olduğu varsayılır)
+            try:
+                content.seek(0)
+                content_bytes = content.read()
+            except AttributeError:
+                 return False, "Invalid file object."
+            keywords = ""
+        else:
+            content_bytes = content
+            keywords = ""
+
+        size = len(content_bytes)
+        fee = calculate_asset_fee(size, asset_type)
+        
+        current_balance_str = self.db.get_config('balance')
+        current_balance = float(current_balance_str) if current_balance_str else 0.0
+
+        if current_balance < fee:
+            L = LANGUAGES.get(DEFAULT_LANG) # Hata mesajı için dil
+            return False, f"{L['not_enough_balance']} ({fee:.4f} GHOST gerekli, bakiye: {current_balance:.4f} GHOST)"
+        
+        asset_id = str(uuid4())
+        
+        conn = self.db.get_connection()
+        try:
+            # 1. Yerel veritabanına kaydet
+            conn.execute("INSERT INTO assets (asset_id, owner_pub_key, type, name, content, storage_size, creation_time, expiry_time, keywords) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                         (asset_id, pub_key, asset_type, name, content_bytes, size, time.time(), time.time() + DOMAIN_EXPIRY_SECONDS, keywords))
             
-            # GMN sadece blokları ve varlıkları tutar, kullanıcı/cüzdan tutmaz
-            cursor.execute('''CREATE TABLE IF NOT EXISTS blocks (block_index INTEGER PRIMARY KEY, timestamp REAL, proof INTEGER, previous_hash TEXT, block_hash TEXT)''')
-            cursor.execute('''CREATE TABLE IF NOT EXISTS assets (asset_id TEXT PRIMARY KEY, owner_pub_key TEXT, type TEXT, name TEXT, content BLOB, storage_size INTEGER, creation_time REAL, expiry_time REAL, is_public INTEGER DEFAULT 1)''')
+            # 2. Bakiyeyi güncelle
+            new_balance = current_balance - fee
+            self.db.set_config('balance', new_balance)
             
-            if cursor.execute("SELECT COUNT(*) FROM blocks").fetchone()[0] == 0:
-                self.create_genesis_block(cursor)
-                
+            # 3. Merkezi Sunucuya Bildirim (Opsiyonel)
+            # TR: Bu kısım, merkezi sunucuya yeni varlığın kaydedildiğini bildirir.
+            # EN: This part notifies the central server that a new asset has been registered.
+            self.comms.send_to_server('/api/register_asset_from_node', {
+                'asset_id': asset_id,
+                'owner_pub_key': pub_key,
+                'type': asset_type,
+                'name': name,
+                'fee': fee,
+                'node_id': NODE_ID
+            })
+            
             conn.commit()
             conn.close()
-            
+            return True, f"Varlık Başarıyla Kaydedildi. Ödenen Ücret: {fee:.4f} GHOST. Yeni Bakiye: {new_balance:.4f} GHOST"
         except Exception as e:
-            logger.critical(f"DB Init Error: {e}")
+            logger.error(f"Yerel varlık kaydı başarısız: {e}")
+            conn.close()
+            return False, str(e)
+            
+# --- TEMEL NODE SİSTEMİ ---
+class GhostMeshNode:
+    def __init__(self, lang_code=DEFAULT_LANG):
+        self.db = DatabaseManager(DB_FILE)
+        self.comms = MeshCommsManager(self.db, GHOST_SERVER_URL)
+        self.asset_mgr = NodeAssetManager(self.db, self.comms)
+        self.lang = LANGUAGES.get(lang_code, LANGUAGES[DEFAULT_LANG])
 
-    def create_genesis_block(self, cursor):
-        genesis_hash = hashlib.sha256(json.dumps({'index': 1, 'timestamp': time.time()}, sort_keys=True).encode()).hexdigest()
-        cursor.execute("INSERT INTO blocks (block_index, timestamp, proof, previous_hash, block_hash) VALUES (?, ?, ?, ?, ?)",
-                       (1, time.time(), 1, '0', genesis_hash))
-    
-    def hash(self, block):
-        if 'transactions' in block:
-             block['transactions'] = sorted(block['transactions'], key=lambda tx: tx['tx_id'])
+    def run_simulation(self):
+        # TR: Basit arayüz simülasyonu
+        # EN: Simple interface simulation
+        logger.info(f"--- GhostProtocol Mesh Node ({self.lang['node_name']}) başlatıldı ---")
+        self.comms.announce_presence()
+        self.comms.discover_local_peers()
+        
+        while True:
+            self.display_status()
+            choice = input(f"\n[{self.lang['node_name']}]: 1-{self.lang['register']}, 2-{self.lang['search']}, 3-{self.lang['wallet']}, 4-Exit: ")
+            
+            if choice == '1':
+                self.handle_registration()
+            elif choice == '2':
+                self.handle_search()
+            elif choice == '3':
+                self.handle_wallet()
+            elif choice == '4':
+                logger.info("Node kapatılıyor...")
+                break
+            else:
+                print("Geçersiz seçim.")
+
+    def display_status(self):
+        pub_key = self.db.get_config('pub_key')
+        balance = self.db.get_config('balance')
+        assets = self.db.get_assets()
+        
+        status = self.lang['status_online'] if self.comms.send_to_server('/api/status', {}) else self.lang['status_offline']
+        mesh_status = self.lang['status_mesh_active'] if (BLUETOOTH_AVAILABLE or WIFI_AVAILABLE) else self.lang['status_offline']
+
+        print("\n--- NODE STATUS ---")
+        print(f"ID: {NODE_ID} | IP: {self.comms.node_ip}")
+        print(f"Server Status: {status} | Mesh Status: {mesh_status}")
+        print(f"Key: {pub_key} | {self.lang['balance']}: {float(balance):.4f} GHOST")
+        print(f"Yerel Varlıklar ({len(assets)}):")
+        
+        # Yerel varlık listesi
+        for a in assets[:5]:
+            fee = calculate_asset_fee(a['storage_size'], a['type'])
+            print(f" - [{a['type'].upper()}] {a['name']} ({fee:.4f} GHOST Fee)")
+
+    def handle_registration(self):
+        print("\n--- VARLIK KAYIT ---")
+        asset_type_choice = input("Varlık Tipi (1-Domain, 2-Media): ")
+        
+        if asset_type_choice == '1':
+            # Domain Kayıt
+            name = input("Domain Adı (alanadi.ghost): ")
+            content = input("HTML İçeriği: ")
+            success, message = self.asset_mgr.register_asset('domain', name, content)
+            print(f"Sonuç: {'BAŞARILI' if success else 'HATA'}: {message}")
+            
+        elif asset_type_choice == '2':
+            # Medya/Dosya Kayıt (Basitleştirilmiş simülasyon)
+            file_name = input("Dosya Adı (ornek.png): ")
+            size_mb = float(input("Boyut (MB): "))
+            
+            # TR: Simülasyon için rastgele veri oluştur
+            # EN: Create random data for simulation
+            size_bytes = int(size_mb * 1024 * 1024)
+            # Dummy content (Gerçekte dosya okunur)
+            dummy_content = os.urandom(size_bytes)
+            
+            success, message = self.asset_mgr.register_asset('file', file_name, dummy_content)
+            print(f"Sonuç: {'BAŞARILI' if success else 'HATA'}: {message}")
+        else:
+            print("Geçersiz Varlık Tipi.")
+            
+    def handle_search(self):
+        # TR: Arama, yerel varlıklar ve merkezi sunucu üzerinden yapılır.
+        # EN: Search is performed across local assets and the central server.
+        query = input("\nAranacak Kelime veya Domain: ")
+        
+        # 1. Yerel Arama
+        local_results = [a for a in self.db.get_assets() if query.lower() in a['name'].lower() or (a['keywords'] and query.lower() in a['keywords'].lower())]
+        print(f"\n--- YEREL SONUÇLAR ({len(local_results)}) ---")
+        for r in local_results:
+             print(f" - {r['name']} ({r['type'].upper()}): ID {r['asset_id'][:8]}...")
              
-        block_string = json.dumps(block, sort_keys=True).encode()
-        return hashlib.sha256(block_string).hexdigest()
-
-# --- BLOCKCHAIN/ASSET MANAGER (Basitleştirilmiş GMN Versiyonu) ---
-class GhostChain:
-    def __init__(self, db_manager):
-        self.db = db_manager
+        # 2. Merkezi Sunucu Arama (Basit API Çağrısı Simülasyonu)
+        server_response = self.comms.send_to_server('/api/search', {'query': query})
         
-    def last_block(self):
-        conn = self.db.get_connection()
-        block = conn.execute("SELECT * FROM blocks ORDER BY block_index DESC LIMIT 1").fetchone()
-        conn.close()
-        return dict(block) if block else None
+        if server_response and 'results' in server_response:
+             print(f"\n--- MERKEZİ SUNUCU SONUÇLARI ({len(server_response['results'])}) ---")
+             for r in server_response['results']:
+                 print(f" - {r['name']} (Type: {r['type']})")
+        else:
+             print("\n--- MERKEZİ SUNUCU SONUÇLARI: Sunucuya ulaşılamadı veya sonuç yok. ---")
 
-    def get_active_assets(self):
-        conn = self.db.get_connection()
-        # Sadece süresi dolmamış varlıkları listele
-        assets = conn.execute("SELECT * FROM assets WHERE expiry_time > ? ORDER BY creation_time DESC", (time.time(),)).fetchall()
-        conn.close()
-        return [dict(a) for a in assets]
+    def handle_wallet(self):
+        pub_key = self.db.get_config('pub_key')
+        balance = self.db.get_config('balance')
+        print(f"\n--- CÜZDAN BİLGİLERİ ---")
+        print(f"Genel Anahtar: {pub_key}")
+        print(f"Bakiye: {float(balance):.4f} GHOST")
 
-# --- EŞİTLEME VE ÇATIŞMA ÇÖZÜMÜ ---
-def resolve_conflicts(peers):
-    max_length = chain.last_block()['block_index'] if chain.last_block() else 1
-    new_chain = None
-    new_assets = None
-    
-    for peer in peers:
-        try:
-            # Sadece zincir ve varlıkları çekeriz
-            response = requests.get(f'{peer}/chain', timeout=10)
-            
-            if response.status_code == 200:
-                remote_data = response.json()
-                remote_length = remote_data['length']
-                
-                if remote_length > max_length:
-                    max_length = remote_length
-                    new_chain = remote_data['chain']
-                    new_assets = remote_data['assets']
-                    
-        except requests.exceptions.RequestException as e:
-            logger.warning(f"Backbone Peer {peer} ile eşitleme denemesi başarısız: {e}")
-            continue
-
-    if new_chain:
-        if replace_chain_and_assets(new_chain, new_assets):
-            return True, max_length
-    
-    return False, max_length
-
-def replace_chain_and_assets(remote_chain, remote_assets):
-    conn = db.get_connection()
-    try:
-        # Eski zinciri ve varlıkları sil
-        conn.execute("DELETE FROM blocks WHERE block_index > 1")
-        conn.execute("DELETE FROM assets")
-        
-        # Yeni zinciri kaydet
-        for block_data in remote_chain:
-            if block_data['index'] == 1: continue 
-                
-            conn.execute("INSERT INTO blocks (block_index, timestamp, proof, previous_hash, block_hash) VALUES (?, ?, ?, ?, ?)",
-                         (block_data['index'], block_data['timestamp'], block_data['proof'], block_data['previous_hash'], block_data['block_hash']))
-
-        # Yeni varlıkları kaydet
-        for asset_data in remote_assets:
-             # İçeriği Base64'ten ikili (bytes) formata dönüştür
-             content_bytes = base64.b64decode(asset_data['content']) if isinstance(asset_data['content'], str) else asset_data['content']
-             
-             conn.execute("INSERT OR IGNORE INTO assets (asset_id, owner_pub_key, type, name, content, storage_size, creation_time, expiry_time, is_public) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                         (asset_data['asset_id'], asset_data['owner_pub_key'], asset_data['type'], asset_data['name'], content_bytes, asset_data['storage_size'], asset_data['creation_time'], asset_data['expiry_time'], asset_data['is_public']))
-
-        conn.commit()
-        logger.info(f"Zincir ve varlıklar başarıyla eşlendi. Yeni uzunluk: {len(remote_chain)}")
-        return True
-    except Exception as e:
-        conn.rollback()
-        logger.error(f"Zincir değiştirme hatası: {e}")
-        return False
-    finally:
-        conn.close()
-
-# --- UYGULAMA BAŞLATMA / APP INIT ---
-db = DatabaseManager(DB_FILE) 
-chain = GhostChain(db)
-
-# --- LAYOUT (Çoklu Dil Desteği) ---
-LAYOUT = """
-<!doctype html>
-<html>
-<head>
-    <title>{{ lang['title'] }}</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-        body { font-family: sans-serif; background: #222; color: #eee; padding: 20px; }
-        .card { background: #333; padding: 15px; margin-bottom: 10px; border-radius: 5px; border: 1px solid #444; }
-        .header-bar { display: flex; justify-content: space-between; align-items: center; }
-        .lang-switch a { margin-left: 10px; color: #ffeb3b; text-decoration: none; }
-        a { color: #2196f3; text-decoration: none; }
-        button { background: #4caf50; color: white; border: none; padding: 10px; margin-top: 15px; cursor: pointer; border-radius: 5px; }
-        .msg { padding: 10px; border-radius: 4px; margin-bottom: 10px; }
-        .msg.ok { background: #1e4620; color: #7fbf7f; }
-        .msg.err { background: #462222; color: #f7a5a5; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { border: 1px solid #555; padding: 8px; text-align: left; font-size: 0.9em; } 
-    </style>
-</head>
-<body>
-    <div class="header-bar">
-        <h2>{{ lang['title'] }} (Port: {{ GHOST_PORT }})</h2>
-        <div class="lang-switch">
-             {% set current_lang = session.get('lang', 'tr') %}
-             <a href="{{ url_for('set_language', lang='tr') }}" style="font-weight: {{ 'bold' if current_lang == 'tr' else 'normal' }};">TR🇹🇷</a>
-             <a href="{{ url_for('set_language', lang='en') }}" style="font-weight: {{ 'bold' if current_lang == 'en' else 'normal' }};">EN🇬🇧</a>
-        </div>
-    </div>
-    
-    {% block content %}{% endblock %} 
-
-</body>
-</html>
-"""
-
-# --- CONTEXT İŞLEMCİ ---
-@app.context_processor
-def inject_globals():
-    current_lang_code = session.get('lang', 'tr')
-    current_lang = LANGUAGES.get(current_lang_code, LANGUAGES['tr'])
-    
-    try:
-        last_block = chain.last_block()
-        last_block_index = last_block['block_index'] if last_block else 1
-        
-        conn = db.get_connection()
-        asset_count = conn.execute("SELECT COUNT(*) FROM assets").fetchone()[0]
-        domain_count = conn.execute("SELECT COUNT(*) FROM assets WHERE type = 'domain' AND expiry_time > ?", (time.time(),)).fetchone()[0]
-        conn.close()
-        
-    except Exception as e:
-        logger.error(f"Context hatası: {e}")
-        last_block_index = 1
-        asset_count = 0
-        domain_count = 0
-        
-    return dict(lang=current_lang, last_block_index=last_block_index, asset_count=asset_count, domain_count=domain_count, GHOST_PORT=GHOST_PORT)
-
-@app.route('/set_language/<lang>')
-def set_language(lang):
-    if lang in LANGUAGES:
-        session['lang'] = lang
-    return redirect(request.referrer or url_for('home'))
-
-# --- ROTALAR / ROUTES ---
-
-@app.route('/')
-def home():
-    L = inject_globals()['lang']
-    assets = chain.get_active_assets()
-    
-    template = """
-        {% extends "base.html" %} 
-        {% block content %}
-            <div class="card">
-                <h3>{{ lang['welcome_header'] }}</h3>
-                <p>{{ lang['welcome_text'] }}</p>
-                <a href="{{ url_for('sync_network') }}">
-                    <button>{{ lang['sync_btn'] }}</button>
-                </a>
-            </div>
-            
-            <div class="card">
-                <h3>{{ lang['chain_info'] }}</h3>
-                <p><strong>{{ lang['last_block'] }}:</strong> #{{ last_block_index }}</p>
-                <p><strong>{{ lang['asset_count'] }}:</strong> {{ asset_count }}</p>
-                <p><strong>{{ lang['domain_count'] }}:</strong> {{ domain_count }}</p>
-            </div>
-            
-            <div class="card">
-                <h3>{{ lang['assets_title'] }}</h3>
-                <table>
-                    <tr>
-                        <th>{{ lang['asset_name'] }}</th>
-                        <th>{{ lang['asset_type'] }}</th>
-                        <th>{{ lang['asset_action'] }}</th>
-                    </tr>
-                    {% for a in assets %}
-                    <tr>
-                        <td>{{ a.name }} <br><span style="font-size: 0.7em;">ID: {{ a.asset_id[:8] }}...</span></td>
-                        <td>{{ a.type | upper }}</td>
-                        <td>
-                            {# Yerel olarak sunulan link, merkeziyetsiz erişimi gösterir #}
-                            <a href="{{ url_for('view_asset', asset_id=a.asset_id) }}" target="_blank">{{ lang['action_view'] }}</a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                    {% if not assets %}
-                    <tr><td colspan="3">Aktif varlık bulunamadı. Lütfen önce ağı eşitleyin.</td></tr>
-                    {% endif %}
-                </table>
-            </div>
-        {% endblock %}
-    """
-    return render_template_string(template, assets=assets, L=L)
-
-@app.route('/sync')
-def sync_network():
-    L = inject_globals()['lang']
-    
-    # Kendi adresimizi Backbone'a bildirmeye gerek yok, sadece çekim yapıyoruz
-    
-    replaced, new_length = resolve_conflicts(KNOWN_PEERS)
-    
-    if replaced:
-        msg = L['sync_success_msg'].format(length=new_length)
-        msg_class = 'ok'
-    else:
-        current_length = chain.last_block()['block_index'] if chain.last_block() else 1
-        msg = L['sync_no_change'].format(length=current_length)
-        msg_class = 'ok'
-        
-    template = """
-        {% extends "base.html" %} 
-        {% block content %}
-            <div class="card">
-                <h3>{{ lang['sync_status'] }}</h3>
-                <div class='msg {{ msg_class }}'>{{ msg }}</div>
-                <p><a href="{{ url_for('home') }}">{{ lang['back_to_home'] }}</a></p>
-            </div>
-        {% endblock %}
-    """
-    return render_template_string(template, msg_class=msg_class, msg=msg, L=L)
-
-# --- KRİTİK ROTA: VARLIK GÖRÜNTÜLEME (Merkeziyetsiz Servis) ---
-@app.route('/view_asset/<asset_id>')
-def view_asset(asset_id):
-    """
-    Mesh düğümünün, varlık ID'sine göre içeriği kendi yerel veritabanından sunmasını sağlar.
-    """
-    if not asset_id: return "400: ID gerekli", 400
-    L = inject_globals()['lang']
-        
-    conn = db.get_connection()
-    # GMN yerel veritabanında Asset ID'ye göre arama yapar
-    asset = conn.execute("SELECT * FROM assets WHERE asset_id = ?", (asset_id,)).fetchone()
-    conn.close()
-    
-    if not asset: 
-        logger.warning(f"Yerel varlık bulunamadı: {asset_id}")
-        return "404: Varlık yerel olarak bulunamadı. Ağı eşitlemeyi deneyin.", 404
-        
-    content_bytes = asset['content']
-    asset_type = asset['type']
-    
-    # Süresi dolmuş domainleri, sahibi olmayan bir mesh düğümü sunmamalı (SADECE AKİFLER)
-    if asset['expiry_time'] < time.time():
-        return "403: Varlığın süresi dolmuş veya kaldırılmış.", 403
-
-    if asset_type == 'domain':
-        # Domain içeriğini HTML olarak sun
-        return Response(content_bytes, mimetype='text/html')
-    
-    elif asset_type in ['image', 'video', 'audio', 'file']:
-        # Dosya uzantısına göre MIME tipi belirleme (Backbone Server ile aynı mantık)
-        mime_type = 'application/octet-stream'
-        name_lower = asset['name'].lower()
-        if name_lower.endswith(('.jpg', '.jpeg')): mime_type = 'image/jpeg'
-        elif name_lower.endswith(('.png')): mime_type = 'image/png'
-        elif name_lower.endswith(('.gif')): mime_type = 'image/gif'
-        elif name_lower.endswith(('.mp4', '.webm')): mime_type = 'video/mp4'
-        elif name_lower.endswith(('.mp3', '.wav')): mime_type = 'audio/mpeg'
-        
-        # Dosyayı indirilebilir veya görüntülenebilir şekilde sun
-        return Response(content_bytes, mimetype=mime_type, headers={'Content-Disposition': f'inline; filename="{asset["name"]}"'})
-
-    template = """
-        {% extends "base.html" %} 
-        {% block content %}
-            <div class="card">
-                <h3>'{{ asset.name }}' Görüntüleniyor</h3>
-                <p>Tip: {{ asset.type }} (İkili dosya). Bu içerik doğrudan tarayıcıda görüntülenemez.</p>
-                <p><a href="{{ url_for('home') }}">{{ lang['back_to_home'] }}</a></p>
-            </div>
-        {% endblock %}
-    """
-    return render_template_string(template, asset=dict(asset), L=L)
-
+# --- START ---
 if __name__ == '__main__':
-    app.jinja_env.loader = DictLoader({'base.html': LAYOUT})
+    # TR: Simülasyon için kullanıcıdan dil seçimi alınabilir.
+    node = GhostMeshNode()
     
-    print("--- GHOST MESH DÜĞÜMÜ BAŞLATILIYOR / GHOST MESH NODE STARTING ---")
-    print(f"\nMesh Node Port: {GHOST_PORT}")
-    print("Mesh Node sadece zinciri ve varlıkları çeker, kullanıcı/cüzdan tutmaz.")
-    print("Varlıklar artık /view_asset/<asset_id> rotası ile yerel olarak sunulabilir.")
-    print("Veritabanı: ghost_mesh_node.db (Kalıcı)\n")
-    
-    app.run(host='0.0.0.0', port=GHOST_PORT, debug=True, use_reloader=False)
+    try:
+        # TR: Gömülü cihaz veya CLI ortamı simülasyonu
+        node.run_simulation()
+    except KeyboardInterrupt:
+        logger.info("Node kapatılıyor...")
+    except Exception as e:
+        logger.error(f"Beklenmedik bir hata oluştu: {e}")
