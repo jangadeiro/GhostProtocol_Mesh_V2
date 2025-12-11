@@ -39,7 +39,7 @@ GhostProtocol is a Proof-of-Work (PoW) blockchain designed to function as a surv
 
 #### 4. Fair Economy (Storage Rent)
 * **Pay-to-Stay:** To prevent blockchain bloat, users pay a storage fee based on file size.
-* **Cost:** `0.001 GHOST` per MB / Month.
+* **Cost:** `0.01 GHOST` per MB / Month.
 * **Transparency:** Costs and remaining time are visible on the Dashboard.
 
 ### 🚀 Installation
@@ -102,7 +102,7 @@ Bağımsızlık: Orijinal yükleyici içeriği silse veya ödemesini kesse bile,
 4. Adil Ekonomi (Depolama Kirası)
 Kaldıkça-Öde: Blok zincirinin çöp verilerle dolmasını önlemek için boyut bazlı ücretlendirme yapılır.
 
-Ücret: MB başına aylık 0.001 GHOST.
+Ücret: MB başına aylık 0.01 GHOST.
 
 Şeffaflık: Aylık giderler ve kalan süre Dashboard üzerinden takip edilebilir.
 
