@@ -157,7 +157,7 @@ Merkeziyetsiz Servis Eklendi: Yeni /view_asset/<asset_id> rotası eklendi. Bu sa
 
 Veritabanı Sadeleştirmesi: Düğümün yalnızca blokları ve varlıkları saklaması için veritabanı şeması sadeleştirildi. Kullanıcı, cüzdan ve işlem tabloları kaldırıldı.
 
-Çoklu Dil Desteği: Kullanıcı arayüzüne Türkçe ve İngilizce dil destekleri eklendi.
+Çoklu Dil Desteği: Kullanıcı arayüzüne Türkçe, İngilizce, Rusça ve Ermenice dil destekleri eklendi.
 
 3. Genel Etki
 Bu değişiklikler, Ghost Mesh Node (GMN) kullanıcılarının, GhostProtocol'e içerik yükleyen kişilerin paylaştığı medyaları veya domainleri, merkezi bir sunucuya gitmeden, doğrudan zincir referansı (Asset ID) üzerinden alıntılayabilmesini sağlar.
@@ -178,7 +178,7 @@ Decentralized Service Added: A new /view_asset/<asset_id> route was implemented.
 
 Database Simplification: The database schema was streamlined to only store blocks and assets. Tables for users, wallets, and transactions were removed.
 
-Multi-Language Support: Turkish and English language support was added to the user interface.
+Multi-Language Support: Turkish, English, Russian and Armenian language support was added to the user interface.
 
 3. Overall Impact
 These changes enable Ghost Mesh Node (GMN) users to reference media or domains shared by GhostProtocol content creators directly via the chain reference (Asset ID), without needing to route through a centralized server.
