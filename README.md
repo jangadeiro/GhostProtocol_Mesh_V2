@@ -47,12 +47,12 @@ GhostProtocol is a Proof-of-Work (PoW) blockchain designed to function as a surv
 **Prerequisites:** Python 3.9+
 
 # 1. Clone the repository
-git clone [https://github.com/jangadeiro/GhostProtocol_Mesh_V2.git](https://github.com/jangadeiro/GhostProtocol_Mesh_V2.git)
+`git clone [https://github.com/jangadeiro/GhostProtocol_Mesh_V2.git](https://github.com/jangadeiro/GhostProtocol_Mesh_V2.git) `
 
-cd ghostprotocol
+`cd ghostprotocol`
 
 # 2. Install dependencies
-pip install flask requests cryptography
+`pip install flask requests cryptography`
 
 💻 Usage
 GhostProtocol consists of two main components. Choose the one that fits your role.
@@ -61,7 +61,7 @@ A. Run as a Mesh Node (Client/Field Device)
 For laptops, Raspberry Pis, or personal computers. It connects to the Cloud when online and peers when offline.
 
 Bash
-python ghost_mesh_node.py
+`python ghost_mesh_node.py`
 Access: http://localhost:5001
 
 Features: Wallet, Mining, Content Browsing, Offline Sync.
@@ -70,7 +70,7 @@ B. Run as a Cloud Server (Mainnet Backbone)
 For VPS (DigitalOcean, AWS, etc.). Acts as the primary data repository.
 
 Bash
-python ghost_server.py
+`python ghost_server.py`
 Access: http://YOUR_SERVER_IP:5000
 
 Features: High-availability block storage, centralized sync point.
@@ -79,7 +79,7 @@ Features: High-availability block storage, centralized sync point.
 🇹🇷 Türkçe</a>
 
 Proje Özeti
-GhostProtocol, internet bağlantısı olmasa dahi çalışabilmek üzere tasarlanmış, Proof-of-Work (PoW) tabanlı bir blok zinciridir. Merkeziyetsiz web sitelerine (.ghost alan adları) ev sahipliği yapar. İnternet varken bulut sunucularla, yokken ise yerel cihazlarla haberleşen hibrit bir yapıya sahiptir.
+GhostProtocol, internet bağlantısı olmasa dahi çalışabilmek üzere tasarlanmış, Proof-of-Work (PoW) tabanlı bir blok zinciridir. Merkeziyetsiz web sitelerine (`.ghost` alan adları) ev sahipliği yapar. İnternet varken bulut sunucularla, yokken ise yerel cihazlarla haberleşen hibrit bir yapıya sahiptir.
 
 🌟 Temel Özellikler
 1. Hibrit Senkronizasyon (Bulut + Mesh)
@@ -112,9 +112,9 @@ Gereksinimler: Python 3.9+
 Bash
 
 # 1. Projeyi indirin
-git clone [https://github.com/jangadeiro/GhostProtocol_Mesh_V2.git](https://github.com/jangadeiro/GhostProtocol_Mesh_V2.git)
+`git clone [https://github.com/jangadeiro/GhostProtocol_Mesh_V2.git](https://github.com/jangadeiro/GhostProtocol_Mesh_V2.git) `
 
-cd ghostprotocol
+`cd ghostprotocol`
 
 # 2. Gerekli kütüphaneleri yükleyin
 pip install flask requests cryptography
@@ -125,8 +125,8 @@ A. Mesh Düğümü Olarak Çalıştır (Kullanıcı/Saha Cihazı)
 Kişisel bilgisayarlar veya Raspberry Pi için. İnternet varken buluta, yokken çevreye bağlanır.
 
 Bash
+`python ghost_mesh_node.py`
 
-python ghost_mesh_node.py
 Erişim: http://localhost:5001
 
 Özellikler: Cüzdan, Madencilik, Site Gezintisi, Çevrimdışı Mod.
@@ -135,8 +135,8 @@ B. Bulut Sunucu Olarak Çalıştır (Ana Ağ Omurgası)
 VPS (DigitalOcean, AWS vb.) sunucuları için. Veri merkezi görevi görür.
 
 Bash
+`python ghost_server.py`
 
-python ghost_server.py
 Erişim: http://SUNUCU_IP_ADRESINIZ:5000
 
 Özellikler: Yüksek erişilebilirlik, Ana blok deposu.
@@ -146,7 +146,7 @@ Bu bölüm, GhostProtocol ağının merkeziyetsizliğini ve işlevselliğini ön
 
 🔥 Varlık Sunumu ve Merkeziyetsizlik İyileştirmeleri (Asset Serving & Decentralization Enhancements)
 1. ghost_server.py Güncellemeleri
-Merkeziyetsiz Linkleme: Görüntüleme linkleri artık sunucu adresini içermeyen göreceli URL'ler kullanır. Örneğin, <--<a href="/view_asset/<asset_id>--> formatı kullanılır. Bu, ağdaki Ghost Mesh Node (GMN) tarafından alıntılamayı destekler.
+Merkeziyetsiz Linkleme: Görüntüleme linkleri artık sunucu adresini içermeyen göreceli URL'ler kullanır. Örneğin, `<a href="/view_asset/<asset_id>` formatı kullanılır. Bu, ağdaki Ghost Mesh Node (GMN) tarafından alıntılamayı destekler.
 
 Kopyalama Linkleri: Kullanıcıların kopyaladığı linkler, kullanım kolaylığı için mutlak URL (http://ip:port/view_asset/<asset_id>) olarak kalmaya devam eder.
 
@@ -167,7 +167,7 @@ This section details the latest updates that significantly enhance the decentral
 
 🔥 Asset Serving & Decentralization Enhancements
 1. ghost_server.py Updates
-Decentralized Linking: Viewing links now use relative URLs that do not include the server address. For example, the format <--<a href="/view_asset/<asset_id>--> is used. This supports referencing by the Ghost Mesh Node (GMN) across the network.
+Decentralized Linking: Viewing links now use relative URLs that do not include the server address. For example, the format `<a href="/view_asset/<asset_id>` is used. This supports referencing by the Ghost Mesh Node (GMN) across the network.
 
 Copy Links: Links copied by users remain absolute URLs (http://ip:port/view_asset/<asset_id>) for ease of use.
 
