@@ -162,6 +162,36 @@ Veritabanı Sadeleştirmesi: Düğümün yalnızca blokları ve varlıkları sak
 3. Genel Etki
 Bu değişiklikler, Ghost Mesh Node (GMN) kullanıcılarının, GhostProtocol'e içerik yükleyen kişilerin paylaştığı medyaları veya domainleri, merkezi bir sunucuya gitmeden, doğrudan zincir referansı (Asset ID) üzerinden alıntılayabilmesini sağlar.
 
+# 👻 Ghost Protocol - Gelişmiş Arama Özellikleri
+
+Ghost Protocol, sansüre dayanıklı ve merkeziyetsiz bir içerik platformu olarak tasarlanmıştır. Bu sunucu (Backbone) uygulaması, ağa kaydedilen tüm .ghost alan adlarını ve medya varlıklarını endeksleyerek, kullanıcıların içeriklere kolayca ulaşmasını sağlayan gelişmiş bir arama motoru içerir.
+
+🔍 Ghost Search (Arama) Özellikleri
+Geliştirdiğimiz arama motoru, geleneksel dosya adı aramalarının ötesine geçerek, içeriğin kendisini anlamlandırmaya odaklanır.
+
+# 1. Anahtar Kelime Endeksleme (Full-Text Search)
+Sisteme kaydedilen her .ghost alan adı içeriği (HTML metni), sunucu tarafında özel bir algoritma (extract_keywords fonksiyonu) ile işlenir. Bu işlem:
+
+HTML etiketlerini, betiklerini ve stil tanımlarını temizler.
+
+Durma kelimelerini (ve, ile, the, and vb.) filtreler.
+
+Kalan metni analiz ederek en alakalı anahtar kelimeleri çıkarır ve veritabanında saklar.
+
+Arama sonucu: Kullanıcı bir terim girdiğinde, hem varlık adları hem de bu çıkarılan anahtar kelimeler arasında hızlı bir eşleşme aranır. Bu sayede, varlığın adını bilmeseniz bile içeriği ile ilgili terimlerle bulabilirsiniz.
+
+# 2. Varlık Adı ve Meta Veri Eşleştirme
+Geleneksel arama işlevini korur. Kullanıcı sorgusu, tam eşleşme veya kısmi eşleşme yoluyla:
+
+.ghost alan adlarının adlarıyla,
+
+Yüklenen medya dosyalarının adlarıyla (örn. kedi_fotografi.jpg),
+
+Varlık tipini (domain, image, video vb.) içeren meta verilerle eşleştirilir.
+
+# 3. Merkeziyetsiz Vizyon
+Bu Backbone sunucu, ağ üzerindeki en büyük endeks görevi görür. ghost_mesh_node.py uygulamaları da (mobil ve CLI düğümleri), bu merkezi endeksi kullanarak arama yapabilir veya kendi yerel endekslerini oluşturabilir. Arama mekanizması, sansüre dayanıklı bir bilgi keşif katmanı oluşturmanın temelini atmıştır.
+
 # 🇬🇧 Key Changes and Updates
 This section details the latest updates that significantly enhance the decentralization and functionality of the GhostProtocol network.
 
@@ -182,6 +212,35 @@ Multi-Language Support: Turkish, English, Russian and Armenian language support 
 
 3. Overall Impact
 These changes enable Ghost Mesh Node (GMN) users to reference media or domains shared by GhostProtocol content creators directly via the chain reference (Asset ID), without needing to route through a centralized server.
+
+# 👻 Ghost Protocol - Advanced Search Features
+Ghost Protocol is designed as a censorship-resistant and decentralized content platform. This server (Backbone) application includes an advanced search engine that indexes all .ghost domains and media assets registered on the network, enabling users to easily discover content.
+
+# 🔍 Ghost Search Capabilities
+The search engine we developed goes beyond traditional filename searches and focuses on understanding the content itself.
+
+# 1. Keyword Indexing (Full-Text Search)
+The content of every .ghost domain registered in the system (HTML text) is processed by a special algorithm (extract_keywords function) on the server side. This process:
+
+Cleans up HTML tags, scripts, and style definitions.
+
+Filters out stop words (the, and, for, ile, ve, etc.).
+
+Analyzes the remaining text to extract the most relevant keywords and stores them in the database.
+
+Search Result: When a user enters a query, a rapid match is sought between both the asset names and these extracted keywords. This allows users to find an asset based on terms related to its content, even if they don't know the exact name.
+
+# 2. Asset Name and Metadata Matching
+The traditional search function is preserved. The user query is matched, via exact or partial matches, against:
+
+The names of .ghost domain names.
+
+The names of uploaded media files (e.g., cat_photo.jpg).
+
+Metadata including the asset type (domain, image, video, etc.).
+
+# 3. Decentralized Vision
+This Backbone server acts as the largest index on the network. The ghost_mesh_node.py applications (both mobile and CLI nodes) can also perform searches using this central index or build their own local indexes. The search mechanism lays the foundation for creating a censorship-resistant information discovery layer.
 
 # 🇬🇧 GhostProtocol Network also works on mobile platforms!
 We haven't forgotten about mobile platforms, which will significantly enhance the decentralization, functionality, and reach of the GhostProtocol network. The GhostProtocol Mobile version, which has a separate Git repository, can be accessed at the following Git address.
