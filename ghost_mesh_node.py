@@ -15,8 +15,6 @@ from datetime import timedelta, datetime
 from typing import Optional, Tuple, Dict, Any, List
 
 # --- CİHAZ ÖZELİNDE MESH MODÜLLERİ (OPSİYONEL) ---
-# TR: Bluetooth ve WiFi modülleri (Gelecek geliştirme için yer tutucu)
-# EN: Placeholders for Bluetooth and WiFi modules (For future development)
 try:
     import bluetooth
     BLUETOOTH_AVAILABLE = True
@@ -30,9 +28,7 @@ logger = logging.getLogger("GhostMeshNode")
 # --- YAPILANDIRMA / CONFIGURATION ---
 NODE_ID = hashlib.sha256(socket.gethostname().encode()).hexdigest()[:10]
 DB_FILE = os.path.join(os.getcwd(), f"ghost_node_{NODE_ID}.db")
-GHOST_PORT = 5000 # Node'un diğer node'larla konuşacağı port
-# TR: Bilinen sunucu IP'leri (Bootstrap Nodes)
-# EN: Known server IPs (Bootstrap Nodes)
+GHOST_PORT = 5000 
 KNOWN_PEERS = ["46.101.219.46", "68.183.12.91"] 
 
 STORAGE_COST_PER_MB = 0.01
@@ -59,7 +55,7 @@ LANGUAGES = {
         'results_found': "Sonuçlar:", 'view_content': "İçeriği Görüntüle (ID girin, iptal için 0): ",
         'recipient': "Alıcı Cüzdan Adresi: ", 'amount': "Miktar: ", 'sent_success': "Gönderildi!",
         'mining_start': "Madencilik Başlatılıyor...", 'block_found': "BLOK BULUNDU!", 
-        'assets_title': "Yerel Varlıklar", # Hata Düzeltildi / Error Fixed
+        'assets_title': "Yerel Varlıklar",
         'fee': "Ücret", 'type': "Tür"
     },
     'en': {
@@ -113,7 +109,7 @@ LANGUAGES = {
 }
 DEFAULT_LANG = 'tr'
 
-# --- YARDIMCI FONKSİYONLAR / HELPER FUNCTIONS ---
+# --- YARDIMCI FONKSİYONLAR ---
 def calculate_difficulty(active_peer_count):
     increase = active_peer_count // 5
     return BASE_DIFFICULTY + increase
@@ -130,7 +126,7 @@ def calculate_asset_fee(size_bytes, asset_type):
     if asset_type == 'domain': return DOMAIN_REGISTRATION_FEE
     return round((size_bytes / (1024 * 1024)) * STORAGE_COST_PER_MB, 5)
 
-# --- VERİTABANI YÖNETİCİSİ / DATABASE MANAGER ---
+# --- VERİTABANI YÖNETİCİSİ ---
 class DatabaseManager:
     def __init__(self, db_file):
         self.db_file = db_file
@@ -144,22 +140,18 @@ class DatabaseManager:
     def init_db(self):
         conn = self.get_connection()
         c = conn.cursor()
-        # Node'a özel konfigürasyon tablosu
         c.execute('''CREATE TABLE IF NOT EXISTS node_config (key TEXT PRIMARY KEY, value TEXT)''')
-        # Standart tablolar (Server ile uyumlu)
         c.execute('''CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT, wallet_public_key TEXT UNIQUE, balance REAL DEFAULT 0, last_mined REAL DEFAULT 0)''')
         c.execute('''CREATE TABLE IF NOT EXISTS blocks (block_index INTEGER PRIMARY KEY, timestamp REAL, previous_hash TEXT, block_hash TEXT, proof INTEGER, miner_key TEXT)''')
         c.execute('''CREATE TABLE IF NOT EXISTS assets (asset_id TEXT PRIMARY KEY, owner_pub_key TEXT, type TEXT, name TEXT, content BLOB, storage_size INTEGER, creation_time REAL, expiry_time REAL, keywords TEXT)''')
         c.execute('''CREATE TABLE IF NOT EXISTS transactions (tx_id TEXT PRIMARY KEY, sender TEXT, recipient TEXT, amount REAL, timestamp REAL, block_index INTEGER DEFAULT 0)''')
         c.execute('''CREATE TABLE IF NOT EXISTS mesh_peers (ip_address TEXT PRIMARY KEY, last_seen REAL)''')
         
-        # Genesis Block Kontrolü
         if c.execute("SELECT COUNT(*) FROM blocks").fetchone()[0] == 0:
             genesis_hash = hashlib.sha256(b'GhostGenesis').hexdigest()
             c.execute("INSERT INTO blocks (block_index, timestamp, previous_hash, block_hash, proof, miner_key) VALUES (?, ?, ?, ?, ?, ?)",
                       (1, time.time(), '0', genesis_hash, 100, 'GhostProtocol_System'))
         
-        # Yerel kullanıcı/cüzdan oluşturma (Otomatik)
         if c.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
             my_key = f"GHST{hashlib.sha256(NODE_ID.encode()).hexdigest()[:20]}"
             c.execute("INSERT INTO users (username, password, wallet_public_key, balance) VALUES (?, ?, ?, ?)",
@@ -170,12 +162,11 @@ class DatabaseManager:
 
     def get_my_user(self):
         conn = self.get_connection()
-        user = conn.execute("SELECT * FROM users LIMIT 1").fetchone() # Tek kullanıcı var sayıyoruz
+        user = conn.execute("SELECT * FROM users LIMIT 1").fetchone() 
         conn.close()
         return dict(user) if user else None
 
-# --- MANAGER SINIFLARI / MANAGER CLASSES ---
-# (Ghost Server mantığının Node'a uyarlanmış hali)
+# --- MANAGER SINIFLARI ---
 
 class NodeAssetManager:
     def __init__(self, db_mgr):
@@ -208,6 +199,12 @@ class NodeAssetManager:
         assets = conn.execute("SELECT * FROM assets ORDER BY creation_time DESC").fetchall()
         conn.close()
         return assets
+    
+    def get_all_assets_meta(self):
+        conn = self.db.get_connection()
+        assets = conn.execute("SELECT asset_id FROM assets").fetchall()
+        conn.close()
+        return [dict(a) for a in assets]
 
     def search_assets(self, query):
         conn = self.db.get_connection()
@@ -215,6 +212,19 @@ class NodeAssetManager:
         results = conn.execute("SELECT * FROM assets WHERE name LIKE ? OR keywords LIKE ?", (s, s)).fetchall()
         conn.close()
         return results
+    
+    def sync_asset(self, asset_data):
+        conn = self.db.get_connection()
+        try:
+            content_bytes = base64.b64decode(asset_data['content'])
+            conn.execute("INSERT OR IGNORE INTO assets (asset_id, owner_pub_key, type, name, content, storage_size, creation_time, expiry_time, keywords) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                         (asset_data['asset_id'], asset_data['owner_pub_key'], asset_data['type'], asset_data['name'], content_bytes, 
+                          len(content_bytes), asset_data['creation_time'], asset_data['expiry_time'], asset_data.get('keywords', '')))
+            conn.commit()
+        except Exception as e:
+            logger.error(f"Asset sync error: {e}")
+        finally:
+            conn.close()
 
 class NodeBlockchainManager:
     def __init__(self, db_mgr):
@@ -236,7 +246,7 @@ class NodeBlockchainManager:
 
         last_block = self.get_last_block()
         index = last_block['block_index'] + 1
-        difficulty = BASE_DIFFICULTY # Basitlik için sabit zorluk
+        difficulty = BASE_DIFFICULTY
         
         proof = 0
         while True:
@@ -246,7 +256,7 @@ class NodeBlockchainManager:
             proof += 1
             
         block_hash = hashlib.sha256(f"{index}{time.time()}{last_block['block_hash']}{proof}".encode()).hexdigest()
-        reward = INITIAL_BLOCK_REWARD # Basit ödül
+        reward = INITIAL_BLOCK_REWARD
 
         conn = self.db.get_connection()
         try:
@@ -265,8 +275,6 @@ class NodeBlockchainManager:
         conn = self.db.get_connection()
         try:
             conn.execute("UPDATE users SET balance = balance - ? WHERE id = ?", (amount, user['id']))
-            # Yerel veritabanında alıcı yoksa sadece bakiyeyi düşer (Basitleştirilmiş)
-            # Gerçekte işlem transaction tablosuna yazılır ve ağa yayılır.
             conn.execute("INSERT INTO transactions (tx_id, sender, recipient, amount, timestamp) VALUES (?, ?, ?, ?, ?)",
                          (str(uuid4()), user['wallet_public_key'], recipient, amount, time.time()))
             conn.commit()
@@ -275,8 +283,6 @@ class NodeBlockchainManager:
         finally: conn.close()
 
 class NodeMeshManager:
-    # TR: Peer bulma ve Veri Senkronizasyonu
-    # EN: Peer discovery and Data Synchronization
     def __init__(self, db_mgr, blockchain_mgr, asset_mgr):
         self.db = db_mgr
         self.chain_mgr = blockchain_mgr
@@ -289,33 +295,48 @@ class NodeMeshManager:
         threading.Thread(target=self._sync_loop, daemon=True).start()
 
     def _sync_loop(self):
+        # TR: Başlangıçta ve her 60 saniyede bir senkronize ol
         while True:
             self.sync_with_network()
-            time.sleep(60) # 1 dakikada bir senkronize ol
+            time.sleep(60) 
 
     def sync_with_network(self):
-        # TR: Önce bilinen sunuculardan (Internet), yoksa yerel peerlardan güncelle
-        # EN: Update from known servers (Internet) first, then local peers
+        # TR: İnternet üzerinden bilinen sunucularla veya yerel ağdaki cihazlarla senkronizasyon
         for peer_ip in self.known_peers:
             try:
                 # 1. BLOK SENKRONİZASYONU
-                resp = requests.get(f"http://{peer_ip}:{GHOST_PORT}/api/chain_meta", timeout=2)
+                resp = requests.get(f"http://{peer_ip}:{GHOST_PORT}/api/chain_meta", timeout=3)
                 if resp.status_code == 200:
                     remote_headers = resp.json()
                     local_last = self.chain_mgr.get_last_block()
                     
-                    if remote_headers[-1]['block_index'] > local_last['block_index']:
-                        # Yeni blokları indir
+                    # Eğer uzaktaki zincir daha uzunsa, eksik blokları indir
+                    if remote_headers and remote_headers[-1]['block_index'] > local_last['block_index']:
                         for h in remote_headers:
                             if h['block_index'] > local_last['block_index']:
-                                b_resp = requests.get(f"http://{peer_ip}:{GHOST_PORT}/api/block/{h['block_hash']}", timeout=2)
+                                b_resp = requests.get(f"http://{peer_ip}:{GHOST_PORT}/api/block/{h['block_hash']}", timeout=3)
                                 if b_resp.status_code == 200:
                                     self._save_block(b_resp.json())
-                                    
-                # 2. VARLIK SENKRONİZASYONU
-                # (Benzer mantıkla varlıklar indirilir - Kısaltıldı)
+                                    logger.info(f"Blok indirildi: {h['block_index']}")
+
+                # 2. VARLIK SENKRONİZASYONU (EKLENDİ - SORUN ÇÖZÜMÜ)
+                # TR: Ağdaki varlık listesini çekip yerelde olmayanları indirir.
+                a_resp = requests.get(f"http://{peer_ip}:{GHOST_PORT}/api/assets_meta", timeout=3)
+                if a_resp.status_code == 200:
+                    remote_assets = a_resp.json()
+                    local_assets_meta = self.asset_mgr.get_all_assets_meta()
+                    local_asset_ids = {a['asset_id'] for a in local_assets_meta}
+                    
+                    for ra in remote_assets:
+                        if ra['asset_id'] not in local_asset_ids:
+                            # Varlık içeriğini indir
+                            content_resp = requests.get(f"http://{peer_ip}:{GHOST_PORT}/api/asset_data/{ra['asset_id']}", timeout=3)
+                            if content_resp.status_code == 200:
+                                self.asset_mgr.sync_asset(content_resp.json())
+                                logger.info(f"Varlık indirildi: {ra['name']}")
                 
-            except Exception: pass # Sunucuya ulaşılamadı
+            except Exception as e: 
+                logger.debug(f"Senkronizasyon hatası ({peer_ip}): {e}")
 
     def _save_block(self, block_data):
         conn = self.db.get_connection()
@@ -325,7 +346,7 @@ class NodeMeshManager:
             conn.commit()
         finally: conn.close()
 
-# --- ANA UYGULAMA (TERMINAL ARAYÜZÜ) / MAIN APP (TERMINAL UI) ---
+# --- ANA UYGULAMA (TERMINAL ARAYÜZÜ) ---
 class GhostMeshNodeApp:
     def __init__(self):
         self.db = DatabaseManager(DB_FILE)
@@ -333,7 +354,7 @@ class GhostMeshNodeApp:
         self.asset = NodeAssetManager(self.db)
         self.mesh = NodeMeshManager(self.db, self.chain, self.asset)
         
-        self.lang_code = 'tr' # Varsayılan dil
+        self.lang_code = 'tr' 
         self.L = LANGUAGES[self.lang_code]
 
     def clear_screen(self):
@@ -361,11 +382,9 @@ class GhostMeshNodeApp:
         print(f"🔑 {self.L['pubkey']}: {user['wallet_public_key']}")
         print(f"🧱 Son Blok: {last_block['block_index']}")
         
-        # TR: KeyError hatasının düzeltildiği kısım
-        # EN: Part where KeyError is fixed
         assets_title = self.L.get('assets_title', 'Local Assets') 
         print(f"\n📂 {assets_title} ({len(assets)}):")
-        for a in assets[:3]:
+        for a in assets[:5]:
             print(f" - {a['name']} ({a['type']})")
         print("-" * 30)
 
@@ -398,7 +417,10 @@ class GhostMeshNodeApp:
                     if vid != '0':
                         for r in results:
                             if r['asset_id'] == vid:
-                                print(f"\n--- {r['name']} ---\n{r['content'].decode('utf-8')}\n----------------")
+                                try:
+                                    print(f"\n--- {r['name']} ---\n{r['content'].decode('utf-8')}\n----------------")
+                                except:
+                                    print("İçerik binary formatta.")
                                 input("Devam etmek için Enter...")
             elif choice == '3':
                 rec = input(self.L['recipient'])
