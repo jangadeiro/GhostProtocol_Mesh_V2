@@ -15,6 +15,7 @@ from datetime import timedelta, datetime
 from typing import Optional, Tuple, Dict, Any, List
 
 # --- CİHAZ ÖZELİNDE MESH MODÜLLERİ (OPSİYONEL) ---
+# --- DEVICE-SPECIFIC MESH MODULES (OPTIONAL) ---
 try:
     import bluetooth
     BLUETOOTH_AVAILABLE = True
@@ -110,6 +111,7 @@ LANGUAGES = {
 DEFAULT_LANG = 'tr'
 
 # --- YARDIMCI FONKSİYONLAR ---
+# --- AUXILIARY FUNCTIONS ---
 def calculate_difficulty(active_peer_count):
     increase = active_peer_count // 5
     return BASE_DIFFICULTY + increase
@@ -127,6 +129,7 @@ def calculate_asset_fee(size_bytes, asset_type):
     return round((size_bytes / (1024 * 1024)) * STORAGE_COST_PER_MB, 5)
 
 # --- VERİTABANI YÖNETİCİSİ ---
+# --- DATABASE ADMINISTRATOR ---
 class DatabaseManager:
     def __init__(self, db_file):
         self.db_file = db_file
@@ -167,6 +170,7 @@ class DatabaseManager:
         return dict(user) if user else None
 
 # --- MANAGER SINIFLARI ---
+# --- MANAGER CLASSES ---
 
 class NodeAssetManager:
     def __init__(self, db_mgr):
@@ -347,6 +351,7 @@ class NodeMeshManager:
         finally: conn.close()
 
 # --- ANA UYGULAMA (TERMINAL ARAYÜZÜ) ---
+# --- MAIN APPLICATION (TERMINAL INTERFACE) ---
 class GhostMeshNodeApp:
     def __init__(self):
         self.db = DatabaseManager(DB_FILE)
