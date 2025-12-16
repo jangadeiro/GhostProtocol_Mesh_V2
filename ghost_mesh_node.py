@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import hashlib
 import json
 import time
@@ -14,8 +15,7 @@ from uuid import uuid4
 from datetime import timedelta, datetime
 from typing import Optional, Tuple, Dict, Any, List
 
-# --- CİHAZ ÖZELİNDE MESH MODÜLLERİ (OPSİYONEL) ---
-# --- DEVICE-SPECIFIC MESH MODULES (OPTIONAL) ---
+# --- CİHAZ ÖZELİNDE MESH MODÜLLERİ (OPSİYONEL) / DEVICE SPECIFIC MESH MODULES ---
 try:
     import bluetooth
     BLUETOOTH_AVAILABLE = True
@@ -30,6 +30,8 @@ logger = logging.getLogger("GhostMeshNode")
 NODE_ID = hashlib.sha256(socket.gethostname().encode()).hexdigest()[:10]
 DB_FILE = os.path.join(os.getcwd(), f"ghost_node_{NODE_ID}.db")
 GHOST_PORT = 5000 
+# TR: Bilinen sunucu IP'leri (Bu IP'ler ile veri eşleşmesi sağlanır)
+# EN: Known server IPs (Data synchronization is ensured with these IPs)
 KNOWN_PEERS = ["46.101.219.46", "68.183.12.91"] 
 
 STORAGE_COST_PER_MB = 0.01
@@ -51,10 +53,10 @@ LANGUAGES = {
         'balance': "Bakiye", 'pubkey': "Cüzdan", 'sync_status': "Senkronizasyon",
         'enter_choice': "Seçiminiz: ", 'invalid_choice': "Geçersiz seçim!",
         'domain_name': "Domain Adı (örn: site): ", 'content_html': "İçerik (HTML): ",
-        'register_success': "Kayıt Başarılı!", 'register_fail': "Kayıt Başarısız: ",
+        'register_success': "Kayıt Başarılı! İşlem ağa yayınlandı.", 'register_fail': "Kayıt Başarısız: ",
         'search_query': "Arama (Domain/Kelime): ", 'no_results': "Sonuç bulunamadı.",
         'results_found': "Sonuçlar:", 'view_content': "İçeriği Görüntüle (ID girin, iptal için 0): ",
-        'recipient': "Alıcı Cüzdan Adresi: ", 'amount': "Miktar: ", 'sent_success': "Gönderildi!",
+        'recipient': "Alıcı Cüzdan Adresi: ", 'amount': "Miktar: ", 'sent_success': "Gönderildi ve ağa yayınlandı!",
         'mining_start': "Madencilik Başlatılıyor...", 'block_found': "BLOK BULUNDU!", 
         'assets_title': "Yerel Varlıklar",
         'fee': "Ücret", 'type': "Tür"
@@ -67,10 +69,10 @@ LANGUAGES = {
         'balance': "Balance", 'pubkey': "Wallet", 'sync_status': "Sync Status",
         'enter_choice': "Choice: ", 'invalid_choice': "Invalid choice!",
         'domain_name': "Domain Name (e.g., site): ", 'content_html': "Content (HTML): ",
-        'register_success': "Registration Successful!", 'register_fail': "Registration Failed: ",
+        'register_success': "Registration Successful! Transaction broadcasted.", 'register_fail': "Registration Failed: ",
         'search_query': "Search (Domain/Keyword): ", 'no_results': "No results found.",
         'results_found': "Results:", 'view_content': "View Content (Enter ID, 0 to cancel): ",
-        'recipient': "Recipient Address: ", 'amount': "Amount: ", 'sent_success': "Sent!",
+        'recipient': "Recipient Address: ", 'amount': "Amount: ", 'sent_success': "Sent and broadcasted!",
         'mining_start': "Starting Mining...", 'block_found': "BLOCK FOUND!",
         'assets_title': "Local Assets",
         'fee': "Fee", 'type': "Type"
@@ -83,10 +85,10 @@ LANGUAGES = {
         'balance': "Баланс", 'pubkey': "Кошелек", 'sync_status': "Синхронизация",
         'enter_choice': "Ваш выбор: ", 'invalid_choice': "Неверный выбор!",
         'domain_name': "Имя домена: ", 'content_html': "Содержание (HTML): ",
-        'register_success': "Успешно!", 'register_fail': "Ошибка: ",
+        'register_success': "Успешно! Транзакция отправлена.", 'register_fail': "Ошибка: ",
         'search_query': "Поиск: ", 'no_results': "Нет результатов.",
         'results_found': "Результаты:", 'view_content': "Просмотр (ID): ",
-        'recipient': "Адрес получателя: ", 'amount': "Сумма: ", 'sent_success': "Отправлено!",
+        'recipient': "Адрес получателя: ", 'amount': "Сумма: ", 'sent_success': "Отправлено и транслировано!",
         'mining_start': "Майнинг начат...", 'block_found': "БЛОК НАЙДЕН!",
         'assets_title': "Локальные активы",
         'fee': "Плата", 'type': "Тип"
@@ -99,10 +101,10 @@ LANGUAGES = {
         'balance': "Հաշվեկշիռ", 'pubkey': "Դրամապանակ", 'sync_status': "Սինխրոնիզացիա",
         'enter_choice': "Ընտրություն: ", 'invalid_choice': "Սխալ ընտրություն!",
         'domain_name': "Դոմենի անուն: ", 'content_html': "Բովանդակություն (HTML): ",
-        'register_success': "Հաջողվեց!", 'register_fail': "Ձախողվեց: ",
+        'register_success': "Հաջողվեց! Գործարքը հեռարձակվեց:", 'register_fail': "Ձախողվեց: ",
         'search_query': "Որոնում: ", 'no_results': "Արդյունք չկա:",
         'results_found': "Արդյունքներ:", 'view_content': "Դիտել (ID): ",
-        'recipient': "Ստացող: ", 'amount': "Գումար: ", 'sent_success': "Ուղարկվեց!",
+        'recipient': "Ստացող: ", 'amount': "Գումար: ", 'sent_success': "Ուղարկվեց և հեռարձակվեց!",
         'mining_start': "Մայնինգ...", 'block_found': "ԲԼՈԿԸ ԳՏՆՎԵՑ!",
         'assets_title': "Տեղական Ակտիվներ",
         'fee': "Վճար", 'type': "Տեսակ"
@@ -110,8 +112,7 @@ LANGUAGES = {
 }
 DEFAULT_LANG = 'tr'
 
-# --- YARDIMCI FONKSİYONLAR ---
-# --- AUXILIARY FUNCTIONS ---
+# --- YARDIMCI FONKSİYONLAR / HELPER FUNCTIONS ---
 def calculate_difficulty(active_peer_count):
     increase = active_peer_count // 5
     return BASE_DIFFICULTY + increase
@@ -128,8 +129,7 @@ def calculate_asset_fee(size_bytes, asset_type):
     if asset_type == 'domain': return DOMAIN_REGISTRATION_FEE
     return round((size_bytes / (1024 * 1024)) * STORAGE_COST_PER_MB, 5)
 
-# --- VERİTABANI YÖNETİCİSİ ---
-# --- DATABASE ADMINISTRATOR ---
+# --- VERİTABANI YÖNETİCİSİ / DATABASE MANAGER ---
 class DatabaseManager:
     def __init__(self, db_file):
         self.db_file = db_file
@@ -169,12 +169,13 @@ class DatabaseManager:
         conn.close()
         return dict(user) if user else None
 
-# --- MANAGER SINIFLARI ---
-# --- MANAGER CLASSES ---
+# --- MANAGER SINIFLARI / MANAGER CLASSES ---
 
 class NodeAssetManager:
-    def __init__(self, db_mgr):
+    def __init__(self, db_mgr, blockchain_mgr, mesh_mgr):
         self.db = db_mgr
+        self.chain_mgr = blockchain_mgr
+        self.mesh_mgr = mesh_mgr # TR: Transaction yayını için eklendi / EN: Added for transaction broadcast
 
     def register_asset(self, asset_type, name, content):
         if asset_type == 'domain' and not name.endswith('.ghost'): name += '.ghost'
@@ -190,10 +191,30 @@ class NodeAssetManager:
 
         conn = self.db.get_connection()
         try:
+            asset_id = str(uuid4())
+            tx_id = str(uuid4())
+            timestamp = time.time()
+            sender_key = user['wallet_public_key']
+
+            # 1. Varlığı yerel olarak kaydet / Save asset locally
             conn.execute("INSERT OR REPLACE INTO assets (asset_id, owner_pub_key, type, name, content, storage_size, creation_time, expiry_time, keywords) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                         (str(uuid4()), user['wallet_public_key'], asset_type, name, content_bytes, size, time.time(), time.time() + DOMAIN_EXPIRY_SECONDS, keywords))
+                         (asset_id, sender_key, asset_type, name, content_bytes, size, timestamp, timestamp + DOMAIN_EXPIRY_SECONDS, keywords))
+            
+            # 2. Bakiyeyi düş / Deduct balance
             conn.execute("UPDATE users SET balance = balance - ? WHERE id = ?", (fee, user['id']))
+            
+            # 3. Ücret işlemini oluştur / Create fee transaction
+            conn.execute("INSERT INTO transactions (tx_id, sender, recipient, amount, timestamp) VALUES (?, ?, ?, ?, ?)",
+                         (tx_id, sender_key, "Asset_Fee_Collector", fee, timestamp))
+            
             conn.commit()
+
+            # 4. İşlemi ağa yayınla / Broadcast transaction to network
+            # TR: Bu sayede sunucular işlemin farkına varır ve bloklarına ekler.
+            # EN: This allows servers to be aware of the transaction and add it to their blocks.
+            tx_data = {'tx_id': tx_id, 'sender': sender_key, 'recipient': "Asset_Fee_Collector", 'amount': fee, 'timestamp': timestamp}
+            self.mesh_mgr.broadcast_transaction(tx_data)
+
             return True, "Kayıt Başarılı"
         except Exception as e: return False, str(e)
         finally: conn.close()
@@ -231,8 +252,12 @@ class NodeAssetManager:
             conn.close()
 
 class NodeBlockchainManager:
-    def __init__(self, db_mgr):
+    def __init__(self, db_mgr, mesh_mgr=None):
         self.db = db_mgr
+        self.mesh_mgr = mesh_mgr
+
+    def set_mesh_manager(self, mesh_mgr):
+        self.mesh_mgr = mesh_mgr
 
     def get_last_block(self):
         conn = self.db.get_connection()
@@ -241,6 +266,8 @@ class NodeBlockchainManager:
         return block
 
     def mine_block(self):
+        # TR: Node üzerinde basit madencilik (Proof of concept)
+        # EN: Simple mining on Node (Proof of concept)
         user = self.db.get_my_user()
         miner_key = user['wallet_public_key']
         last_mined = user['last_mined']
@@ -268,6 +295,8 @@ class NodeBlockchainManager:
                          (index, time.time(), last_block['block_hash'], block_hash, proof, miner_key))
             conn.execute("UPDATE users SET balance = balance + ?, last_mined = ? WHERE id = ?", (reward, time.time(), user['id']))
             conn.commit()
+            # TR: Not: Bloğu ağa yaymak gerekir (Gelecek geliştirme)
+            # EN: Note: Block needs to be broadcast to network (Future dev)
             return True, block_hash
         except Exception as e: return False, str(e)
         finally: conn.close()
@@ -278,43 +307,73 @@ class NodeBlockchainManager:
         
         conn = self.db.get_connection()
         try:
+            tx_id = str(uuid4())
+            timestamp = time.time()
+            sender_key = user['wallet_public_key']
+
+            # 1. Yerel bakiyeyi güncelle / Update local balance
             conn.execute("UPDATE users SET balance = balance - ? WHERE id = ?", (amount, user['id']))
+            
+            # 2. İşlemi kaydet / Save transaction
             conn.execute("INSERT INTO transactions (tx_id, sender, recipient, amount, timestamp) VALUES (?, ?, ?, ?, ?)",
-                         (str(uuid4()), user['wallet_public_key'], recipient, amount, time.time()))
+                         (tx_id, sender_key, recipient, amount, timestamp))
             conn.commit()
+
+            # 3. İşlemi ağa yayınla / Broadcast transaction
+            if self.mesh_mgr:
+                tx_data = {'tx_id': tx_id, 'sender': sender_key, 'recipient': recipient, 'amount': amount, 'timestamp': timestamp}
+                self.mesh_mgr.broadcast_transaction(tx_data)
+
             return True, "Transfer yapıldı."
         except Exception as e: return False, str(e)
         finally: conn.close()
 
 class NodeMeshManager:
-    def __init__(self, db_mgr, blockchain_mgr, asset_mgr):
+    def __init__(self, db_mgr, blockchain_mgr):
         self.db = db_mgr
         self.chain_mgr = blockchain_mgr
-        self.asset_mgr = asset_mgr
+        self.asset_mgr = None # Sonradan set edilecek / Will be set later
         self.known_peers = KNOWN_PEERS
         
         self.start_services()
+
+    def set_asset_manager(self, asset_mgr):
+        self.asset_mgr = asset_mgr
 
     def start_services(self):
         threading.Thread(target=self._sync_loop, daemon=True).start()
 
     def _sync_loop(self):
         # TR: Başlangıçta ve her 60 saniyede bir senkronize ol
+        # EN: Sync initially and every 60 seconds
         while True:
             self.sync_with_network()
             time.sleep(60) 
 
+    def broadcast_transaction(self, tx_data):
+        # TR: İşlemi bilinen tüm sunuculara gönder
+        # EN: Send transaction to all known servers
+        def _send():
+            for peer in self.known_peers:
+                try:
+                    url = f"http://{peer}:{GHOST_PORT}/api/send_transaction"
+                    requests.post(url, json=tx_data, timeout=3)
+                    logger.info(f"Transaction sent to {peer}")
+                except Exception as e:
+                    logger.warning(f"Failed to send TX to {peer}: {e}")
+        threading.Thread(target=_send, daemon=True).start()
+
     def sync_with_network(self):
-        # TR: İnternet üzerinden bilinen sunucularla veya yerel ağdaki cihazlarla senkronizasyon
+        # TR: İnternet üzerinden bilinen sunucularla senkronizasyon
+        # EN: Synchronization with known servers over Internet
         for peer_ip in self.known_peers:
             try:
-                # 1. BLOK SENKRONİZASYONU
+                # 1. BLOK SENKRONİZASYONU / BLOCK SYNC
                 resp = requests.get(f"http://{peer_ip}:{GHOST_PORT}/api/chain_meta", timeout=3)
                 if resp.status_code == 200:
                     remote_headers = resp.json()
                     local_last = self.chain_mgr.get_last_block()
                     
-                    # Eğer uzaktaki zincir daha uzunsa, eksik blokları indir
                     if remote_headers and remote_headers[-1]['block_index'] > local_last['block_index']:
                         for h in remote_headers:
                             if h['block_index'] > local_last['block_index']:
@@ -323,21 +382,20 @@ class NodeMeshManager:
                                     self._save_block(b_resp.json())
                                     logger.info(f"Blok indirildi: {h['block_index']}")
 
-                # 2. VARLIK SENKRONİZASYONU (EKLENDİ - SORUN ÇÖZÜMÜ)
-                # TR: Ağdaki varlık listesini çekip yerelde olmayanları indirir.
-                a_resp = requests.get(f"http://{peer_ip}:{GHOST_PORT}/api/assets_meta", timeout=3)
-                if a_resp.status_code == 200:
-                    remote_assets = a_resp.json()
-                    local_assets_meta = self.asset_mgr.get_all_assets_meta()
-                    local_asset_ids = {a['asset_id'] for a in local_assets_meta}
-                    
-                    for ra in remote_assets:
-                        if ra['asset_id'] not in local_asset_ids:
-                            # Varlık içeriğini indir
-                            content_resp = requests.get(f"http://{peer_ip}:{GHOST_PORT}/api/asset_data/{ra['asset_id']}", timeout=3)
-                            if content_resp.status_code == 200:
-                                self.asset_mgr.sync_asset(content_resp.json())
-                                logger.info(f"Varlık indirildi: {ra['name']}")
+                # 2. VARLIK SENKRONİZASYONU / ASSET SYNC
+                if self.asset_mgr:
+                    a_resp = requests.get(f"http://{peer_ip}:{GHOST_PORT}/api/assets_meta", timeout=3)
+                    if a_resp.status_code == 200:
+                        remote_assets = a_resp.json()
+                        local_assets_meta = self.asset_mgr.get_all_assets_meta()
+                        local_asset_ids = {a['asset_id'] for a in local_assets_meta}
+                        
+                        for ra in remote_assets:
+                            if ra['asset_id'] not in local_asset_ids:
+                                content_resp = requests.get(f"http://{peer_ip}:{GHOST_PORT}/api/asset_data/{ra['asset_id']}", timeout=3)
+                                if content_resp.status_code == 200:
+                                    self.asset_mgr.sync_asset(content_resp.json())
+                                    logger.info(f"Varlık indirildi: {ra['name']}")
                 
             except Exception as e: 
                 logger.debug(f"Senkronizasyon hatası ({peer_ip}): {e}")
@@ -347,17 +405,27 @@ class NodeMeshManager:
         try:
             conn.execute("INSERT OR IGNORE INTO blocks (block_index, timestamp, previous_hash, block_hash, proof, miner_key) VALUES (?, ?, ?, ?, ?, ?)",
                          (block_data['block_index'], block_data['timestamp'], block_data['previous_hash'], block_data['block_hash'], block_data['proof'], block_data['miner_key']))
+            # TR: Blok indirildiğinde bekleyen işlemleri onayla (Bakiyeyi güncelle - Basitleştirilmiş)
+            # EN: Confirm pending transactions when block downloaded (Update balance - Simplified)
+            # Not: Node istemci olduğu için, sunucunun doğruladığı bloğu kabul ediyoruz.
             conn.commit()
         finally: conn.close()
 
-# --- ANA UYGULAMA (TERMINAL ARAYÜZÜ) ---
-# --- MAIN APPLICATION (TERMINAL INTERFACE) ---
+# --- ANA UYGULAMA (TERMINAL ARAYÜZÜ) / MAIN APP (TERMINAL UI) ---
 class GhostMeshNodeApp:
     def __init__(self):
         self.db = DatabaseManager(DB_FILE)
+        
+        # TR: Yöneticileri başlat ve birbirine bağla
+        # EN: Initialize managers and link them
         self.chain = NodeBlockchainManager(self.db)
-        self.asset = NodeAssetManager(self.db)
-        self.mesh = NodeMeshManager(self.db, self.chain, self.asset)
+        self.mesh = NodeMeshManager(self.db, self.chain)
+        self.asset = NodeAssetManager(self.db, self.chain, self.mesh)
+        
+        # TR: Döngüsel bağımlılığı çözmek için sonradan atama
+        # EN: Late assignment to resolve circular dependency
+        self.mesh.set_asset_manager(self.asset)
+        self.chain.set_mesh_manager(self.mesh)
         
         self.lang_code = 'tr' 
         self.L = LANGUAGES[self.lang_code]
