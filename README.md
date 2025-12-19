@@ -252,6 +252,73 @@ GhostProtocol ağının merkeziyetsizliğini, işlevselliğini ve erişimini ön
 
 https://github.com/jangadeiro/GhostProtocol_Mesh_V2_MOBILE
 
+# GhostProtocol with GhostMessenger 👻
+
+**[TR]** Özgür, blokzincir tabanlı, sansürlenemez ve tamamen şifreli bir iletişim & internet altyapısı.
+**[EN]** A free, blockchain-based, uncensorable, and fully encrypted communication & internet infrastructure.
+
+---
+
+## 🌍 GhostMessenger Hakkında / About the GhostMessenger
+
+**[TR]**
+GhostProtocol, merkeziyetsiz bir ağ (Mesh Network) ve blokzinciri teknolojisi kullanarak internet sansürlerini aşmayı hedefler. Sadece sansürsüz web içeriği barındırmakla kalmaz, aynı zamanda **GhostMessenger** modülü ile tamamen güvenli, uçtan uca şifreli ve anonim bir anlık mesajlaşma deneyimi sunar.
+
+**[EN]**
+GhostProtocol aims to bypass internet censorship using a decentralized Mesh Network and blockchain technology. Not only does it host uncensorable web content, but it also provides a secure, end-to-end encrypted, and anonymous instant messaging experience via the **GhostMessenger** module.
+
+---
+
+## 💬 GhostMessenger Özellikleri / Features
+
+### 🔐 Uçtan Uca Şifreleme / End-to-End Encryption
+**[TR]** Mesajlarınız yerel veritabanında şifreli olarak saklanır. Sadece gönderen ve alıcı bu mesajları okuyabilir. Merkezi bir sunucu yoktur, bu yüzden mesajlarınız asla "görülemez".
+**[EN]** Your messages are stored encrypted in the local database. Only the sender and recipient can read them. Since there is no central server, your messages can never be "seen".
+
+### 📎 Medya Paylaşımı / Media Sharing
+**[TR]** "Kayıtlı Varlıklarım" (My Assets) bölümüne yüklediğiniz herhangi bir dosyayı (resim, ses, video, belge vb.) sohbet penceresinden kolayca paylaşabilirsiniz. Bu dosyalar IPFS benzeri dağıtık bir yapıda saklanır.
+**[EN]** Easily share any file (image, voice, video, document etc.) uploaded to "My Assets" directly from the chat window. These files are stored in a distributed structure similar to IPFS.
+
+### 💰 Mikro Ödeme Modeli / Micro-Payment Model
+**[TR]** Spam'i önlemek ve ağı sürdürülebilir kılmak için her etkileşim küçük bir GHOST coin ödemesi gerektirir:
+* **Arkadaş Ekleme:** 0.00001 GHOST
+* **Mesaj Gönderme:** 0.00001 GHOST
+Bu ücretler, ağı ayakta tutan kullanıcılara dağıtılır.
+
+**[EN]** To prevent spam and ensure network sustainability, every interaction requires a small GHOST coin payment:
+* **Add Friend:** 0.00001 GHOST
+* **Send Message:** 0.00001 GHOST
+These fees are distributed to the users who maintain the network.
+
+---
+
+## 🚀 Nasıl Kullanılır? / How to Use
+
+1.  **Başlat / Start:** Sunucuyu çalıştırın: `python ghost_server.py`
+2.  **Giriş / Login:** Tarayıcınızdan `http://localhost:5000` adresine gidin.
+3.  **Kazan / Earn:** Başlangıç bakiyeniz 0'dır. "Madencilik" (Mining) sekmesine gidin ve ilk GHOST coinlerinizi üretin.
+4.  **Sohbet / Chat:** Sağ alt köşedeki 💬 ikonuna tıklayın.
+    * Arkadaşınızın kullanıcı adını girip `+` butonuna basarak davet yollayın.
+    * Arkadaşınız listeye eklendiğinde ismine tıklayıp sohbete başlayın.
+
+---
+
+## 📊 İstatistikler / Statistics
+
+**[TR]** Giriş ekranında ve madencilik sayfasında ağın anlık durumunu görebilirsiniz:
+* **Toplam Arz:** 100.000.000 GHOST
+* **Dolaşımdaki Arz:** Şu ana kadar üretilen miktar.
+* **Kalan Arz:** Henüz üretilmemiş miktar.
+* **Yarılanma (Halving):** Ödülün yarıya düşmesine kalan blok sayısı.
+
+**[EN]** You can view the live status of the network on the login and mining pages:
+* **Total Supply:** 100,000,000 GHOST
+* **Circulating Supply:** Amount mined so far.
+* **Remaining Supply:** Amount yet to be mined.
+* **Halving:** Number of blocks remaining until the reward is halved.
+
+---
+
 
 # ⚠️ Disclaimer / Yasal Uyarı
 GhostProtocol is an experimental software designed for educational and research purposes. Use at your own risk. (GhostProtocol eğitim ve araştırma amaçlı tasarlanmış deneysel bir yazılımdır. Kullanım riski size aittir.)
