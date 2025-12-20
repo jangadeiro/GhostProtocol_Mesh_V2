@@ -20,6 +20,8 @@ from jinja2 import DictLoader, Template
 from werkzeug.utils import secure_filename
 
 # --- LOGLAMA / LOGGING ---
+# TR: Sunucu aktivitelerini takip etmek için loglama ayarları.
+# EN: Logging settings to track server activities.
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - GhostServer - %(levelname)s - %(message)s')
 logger = logging.getLogger("GhostCloud")
 
@@ -40,12 +42,12 @@ INITIAL_USER_BALANCE = 0.0
 MESSAGE_FEE = 0.00001
 INVITE_FEE = 0.00001
 
-# TR: P2P Bootstrap Peer Listesi
-# EN: P2P Bootstrap Peer List
+# TR: P2P Bootstrap Peer Listesi (İlk bağlantı noktaları)
+# EN: P2P Bootstrap Peer List (Initial connection points)
 KNOWN_PEERS = ["46.101.219.46", "68.183.12.91"] 
 
 app = Flask(__name__)
-app.secret_key = 'cloud_super_secret_permanency_fix_2024_FINAL_FULL_V13' 
+app.secret_key = 'cloud_super_secret_permanency_fix_2024_FINAL_FULL_V14' 
 app.permanent_session_lifetime = timedelta(days=7) 
 app.config['SESSION_COOKIE_SECURE'] = False 
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax' 
@@ -173,7 +175,8 @@ LANGUAGES = {
 # --- YARDIMCI FONKSİYONLAR / HELPER FUNCTIONS ---
 def generate_user_keys(username):
     original_hash = hashlib.sha256(username.encode()).hexdigest()[:20]
-    return original_hash, f"GHST{original_hash}"
+    ghst_address = f"GHST{original_hash}" 
+    return original_hash, ghst_address
 
 def generate_qr_code_link(ghst_address):
     return f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={ghst_address}"
@@ -220,8 +223,6 @@ class DatabaseManager:
         cursor.execute('''CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT, wallet_public_key TEXT UNIQUE, balance REAL DEFAULT 0, last_mined REAL DEFAULT 0)''')
         cursor.execute('''CREATE TABLE IF NOT EXISTS blocks (block_index INTEGER PRIMARY KEY, timestamp REAL, previous_hash TEXT, block_hash TEXT, proof INTEGER, miner_key TEXT)''')
         cursor.execute('''CREATE TABLE IF NOT EXISTS assets (asset_id TEXT PRIMARY KEY, owner_pub_key TEXT, type TEXT, name TEXT, content BLOB, storage_size INTEGER, creation_time REAL, expiry_time REAL, keywords TEXT)''')
-        # TR: block_index varsayılan 0 (veya NULL), bloğa girince güncellenir.
-        # EN: block_index default 0 (or NULL), updated when included in a block.
         cursor.execute('''CREATE TABLE IF NOT EXISTS transactions (tx_id TEXT PRIMARY KEY, sender TEXT, recipient TEXT, amount REAL, timestamp REAL, block_index INTEGER DEFAULT 0)''')
         cursor.execute('''CREATE TABLE IF NOT EXISTS mesh_peers (ip_address TEXT PRIMARY KEY, last_seen REAL)''')
         
@@ -270,11 +271,9 @@ class MessengerManager:
     def __init__(self, db_mgr, blockchain_mgr, mesh_mgr):
         self.db = db_mgr
         self.chain_mgr = blockchain_mgr
-        self.mesh_mgr = mesh_mgr
+        self.mesh_mgr = mesh_mgr # TR: Ağa mesaj yaymak için gerekli / EN: Required to broadcast message to network
 
     def send_invite(self, sender_key, friend_username):
-        # TR: Arkadaş daveti gönderir ve ücreti düşer.
-        # EN: Sends friend invite and deducts fee.
         fee = self.db.get_fee('invite_fee')
         conn = self.db.get_connection()
         try:
@@ -308,14 +307,12 @@ class MessengerManager:
         
         conn = self.db.get_connection()
         try:
-            # TR: Mesajı yerel veritabanına kaydet
-            # EN: Save message to local database
             conn.execute("INSERT INTO messages (msg_id, sender, recipient, content, asset_id, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
                          (msg_id, sender_key, recipient_key, encrypted_content, asset_id, timestamp))
             conn.commit()
             
-            # TR: Mesajı Ağa Yay (Broadcast)
-            # EN: Broadcast Message to Network
+            # TR: Mesajı diğer sunuculara yay (Broadcast)
+            # EN: Broadcast message to other servers
             msg_data = {
                 'type': 'message',
                 'msg_id': msg_id,
@@ -331,8 +328,8 @@ class MessengerManager:
         finally: conn.close()
 
     def receive_message(self, msg_data):
-        # TR: Ağdan gelen mesajı al ve kaydet
-        # EN: Receive message from network and save
+        # TR: Dışarıdan gelen mesajı al ve kaydet
+        # EN: Receive incoming message and save
         conn = self.db.get_connection()
         try:
             exists = conn.execute("SELECT msg_id FROM messages WHERE msg_id = ?", (msg_data['msg_id'],)).fetchone()
@@ -340,8 +337,11 @@ class MessengerManager:
                 conn.execute("INSERT INTO messages (msg_id, sender, recipient, content, asset_id, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
                              (msg_data['msg_id'], msg_data['sender'], msg_data['recipient'], msg_data['content'], msg_data['asset_id'], msg_data['timestamp']))
                 conn.commit()
-        except: pass
-        finally: conn.close()
+                logger.info(f"Incoming Message Stored: {msg_data['msg_id']}")
+        except Exception as e:
+            logger.error(f"Receive MSG error: {e}")
+        finally:
+            conn.close()
 
     def get_messages(self, user_key, friend_key):
         # TR: İki kullanıcı arasındaki mesajları getirir.
@@ -487,8 +487,8 @@ class AssetManager:
 class BlockchainManager:
     def __init__(self, db_manager):
         self.db = db_manager
-        # TR: MeshManager referansı sonradan set edilecek
-        # EN: MeshManager reference will be set later
+        # TR: MeshManager referansı sonradan set edilecek (Circular dependency)
+        # EN: MeshManager reference will be set later (Circular dependency)
         self.mesh_mgr = None 
 
     def set_mesh_manager(self, mgr):
@@ -498,33 +498,33 @@ class BlockchainManager:
         conn = self.db.get_connection()
         block = conn.execute("SELECT * FROM blocks ORDER BY block_index DESC LIMIT 1").fetchone()
         conn.close()
-        return dict(block)
+        return block
 
     def get_statistics(self):
-        # TR: Gelişmiş istatistik hesaplama (Arz, Yarılanma, Bloklar) - DÜZELTİLDİ
-        # EN: Advanced statistics calculation (Supply, Halving, Blocks) - FIXED
+        # TR: İstatistikleri hesapla
+        # EN: Calculate statistics
         conn = self.db.get_connection()
+        last_block = self.get_last_block()
         
-        # TR: Dolaşımdaki arz (Sistemden çıkan ödüller)
-        # EN: Circulating supply (Rewards emitted by system)
-        mined_supply = conn.execute("SELECT SUM(amount) FROM transactions WHERE sender = 'GhostProtocol_System'").fetchone()[0] or 0.0
+        # TR: Dolaşımdaki Arz Hesabı
+        # EN: Circulating Supply Calculation
+        mined_rewards = conn.execute("SELECT SUM(amount) FROM transactions WHERE sender = 'GhostProtocol_System'").fetchone()[0] or 0.0
+        mined_supply = mined_rewards
         
-        last_block = conn.execute("SELECT * FROM blocks ORDER BY block_index DESC LIMIT 1").fetchone()
         current_block_index = last_block['block_index']
-        
         halvings = current_block_index // HALVING_INTERVAL
         current_reward = INITIAL_BLOCK_REWARD / (2**halvings)
-        remaining_blocks = HALVING_INTERVAL - (current_block_index % HALVING_INTERVAL)
+        blocks_to_halving = HALVING_INTERVAL - (current_block_index % HALVING_INTERVAL)
         
         conn.close()
         
         return {
-            'total_supply': TOTAL_SUPPLY,
-            'circulating_supply': mined_supply,
-            'remaining_supply': TOTAL_SUPPLY - mined_supply,
-            'block_reward': current_reward,
-            'solved_blocks': current_block_index,
-            'blocks_until_halving': remaining_blocks
+            "total_supply": TOTAL_SUPPLY,
+            "circulating_supply": mined_supply,
+            "remaining_supply": TOTAL_SUPPLY - mined_supply,
+            "block_reward": current_reward,
+            "solved_blocks": current_block_index,
+            "blocks_until_halving": blocks_to_halving
         }
 
     def get_all_headers(self):
@@ -784,7 +784,10 @@ class MeshManager:
         peers = conn.execute("SELECT ip_address FROM mesh_peers WHERE last_seen > ?", (time.time() - 3600,)).fetchall()
         conn.close()
         
-        my_headers = [h['block_hash'] for h in blockchain_mgr.get_all_headers()]
+        my_headers = blockchain_mgr.get_all_headers()
+        my_assets = assets_mgr.get_all_assets_meta()
+        my_asset_ids = {a['asset_id'] for a in my_assets}
+        my_block_hashes = {h['block_hash'] for h in my_headers}
 
         for peer_row in peers:
             peer_ip = peer_row['ip_address']
@@ -796,7 +799,7 @@ class MeshManager:
                 if resp.status_code == 200:
                     peer_headers = resp.json()
                     for ph in peer_headers:
-                        if ph['block_hash'] not in my_headers:
+                        if ph['block_hash'] not in my_block_hashes:
                             # TR: Eksik bloğu indir
                             # EN: Download missing block
                             b_resp = requests.get(f"http://{peer_ip}:{GHOST_PORT}/api/block/{ph['block_hash']}", timeout=3)
@@ -805,18 +808,24 @@ class MeshManager:
                                 logger.info(f"Block synced from {peer_ip}: {ph['block_hash'][:8]}")
 
                 # 2. VARLIK SENKRONİZASYONU / ASSET SYNC
-                # (Basitlik için burada tam kod tekrarı yapmıyorum ama AssetManager.sync_asset çağrılabilir)
+                resp = requests.get(f"http://{peer_ip}:{GHOST_PORT}/api/assets_meta", timeout=3)
+                if resp.status_code == 200:
+                    peer_assets = resp.json()
+                    for pa in peer_assets:
+                        if pa['asset_id'] not in my_asset_ids:
+                            # TR: Eksik varlığı indir
+                            # EN: Download missing asset
+                            a_resp = requests.get(f"http://{peer_ip}:{GHOST_PORT}/api/asset_data/{pa['asset_id']}", timeout=3)
+                            if a_resp.status_code == 200:
+                                assets_mgr.sync_asset(a_resp.json())
+                                logger.info(f"Asset synced from {peer_ip}: {pa['name']}")
                 
                 # 3. FEE SYNC
                 # TR: Ağdan güncel ücretleri çek
                 # EN: Fetch current fees from network
                 f_resp = requests.get(f"http://{peer_ip}:{GHOST_PORT}/api/get_fees", timeout=3)
                 if f_resp.status_code == 200:
-                    c = self.db.get_connection()
-                    for k,v in f_resp.json().items():
-                        c.execute("INSERT OR REPLACE INTO network_fees (fee_type, amount) VALUES (?, ?)", (k, v))
-                    c.commit()
-                    c.close()
+                    db.update_fees(f_resp.json())
 
             except Exception as e:
                 logger.warning(f"Sync failed with {peer_ip}: {e}")
@@ -866,7 +875,7 @@ class MeshManager:
     def _cleanup_loop(self):
         while True:
             conn = self.db.get_connection()
-            cutoff = time.time() - 3600 # 1 saat
+            cutoff = time.time() - 3600 # TR: 1 saat / EN: 1 hour
             conn.execute("DELETE FROM mesh_peers WHERE last_seen < ?", (cutoff,))
             conn.commit()
             conn.close()
@@ -944,6 +953,7 @@ LOGIN_UI = r"""
             <label for="password">{{ lang['password'] }}</label>
             <input type="password" id="password" name="password" required>
             <button class="action-button" type="submit">{{ lang['submit'] }}</button>
+            <p style="margin-top: 15px;">{{ lang['register'] }} için <a href="{{ url_for('register') }}" style="color: #ffeb3b;">tıklayın</a>.</p>
         </form>
     </div>
     <div class="card" style="flex: 1; font-size: 0.9em; background-color: #2a2a2a;">
@@ -951,6 +961,7 @@ LOGIN_UI = r"""
         <p><strong>{{ lang['total_supply'] }}:</strong> {{ stats['total_supply'] | thousands }} GHOST</p>
         <p><strong>{{ lang['mined_supply'] }}:</strong> {{ stats['circulating_supply'] | thousands }} GHOST</p>
         <p><strong>{{ lang['remaining_supply'] }}:</strong> {{ stats['remaining_supply'] | thousands }} GHOST</p>
+        <p><strong>{{ lang['mine_reward'] }}:</strong> {{ current_reward }} GHOST</p>
         <p><strong>{{ lang['solved_blocks'] }}:</strong> {{ stats['solved_blocks'] }}</p>
         <p><strong>{{ lang['blocks_to_halving'] }}:</strong> {{ stats['blocks_until_halving'] }}</p>
     </div>
@@ -977,6 +988,7 @@ REGISTER_UI = r"""
         <p><strong>{{ lang['total_supply'] }}:</strong> {{ stats['total_supply'] | thousands }} GHOST</p>
         <p><strong>{{ lang['mined_supply'] }}:</strong> {{ stats['circulating_supply'] | thousands }} GHOST</p>
         <p><strong>{{ lang['remaining_supply'] }}:</strong> {{ stats['remaining_supply'] | thousands }} GHOST</p>
+        <p><strong>{{ lang['mine_reward'] }}:</strong> {{ current_reward }} GHOST</p>
         <p><strong>{{ lang['solved_blocks'] }}:</strong> {{ stats['solved_blocks'] }}</p>
         <p><strong>{{ lang['blocks_to_halving'] }}:</strong> {{ stats['blocks_until_halving'] }}</p>
     </div>
@@ -1304,6 +1316,14 @@ def api_invite():
 def api_chat(friend_key):
     if not session.get('username'): return jsonify([])
     return jsonify(messenger_mgr.get_messages(session['pub_key'], friend_key))
+
+@app.route('/api/messenger/receive_message', methods=['POST'])
+def api_receive_message():
+    data = request.get_json()
+    if data and data.get('type') == 'message':
+        messenger_mgr.receive_message(data)
+        return jsonify({'status': 'ok'}), 200
+    return jsonify({'error': 'invalid data'}), 400
 
 @app.route('/api/messenger/send', methods=['POST'])
 def api_send_msg():
