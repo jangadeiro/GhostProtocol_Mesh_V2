@@ -318,7 +318,172 @@ These fees are distributed to the users who maintain the network.
 * **Halving:** Number of blocks remaining until the reward is halved.
 
 ---
+### Akıllı Kontratlar ve GhostProtocol Sanal Makinesi / Smart Contracts and GhostProtocol VM
 
+- [🇹🇷 **Türkçe**](#-turkishc)
+- [🇬🇧 **English**](#-englishc)
+---
+
+<a name="-turkishc">
+## 🇹🇷 Türkçe</a>
+
+* **GhostProtocol Akıllı Kontrat Mimarisi:** Programlanabilir GelecekGhostProtocol, blockchain üzerinde karmaşık mantık yürütmeyi sağlayan, Python tabanlı ve GhostVM üzerinde koşan bir akıllı kontrat yapısı sunar. Bu yapı, geliştiricilere düşük maliyetli, yüksek hızlı ve son derece esnek bir geliştirme ortamı sağlar.
+
+* **1. Akıllı Kontrat Çalışma Mantığı ve Mimari** GhostProtocol akıllı kontratları, "Durum Makineleri" (State Machines) prensibiyle çalışır. Her kontratın kendine ait izole bir veritabanı (State) ve bu veritabanını değiştirecek kod blokları (Methods) vardır.GhostVM: Kontratlar, ana sunucu çekirdeğinden izole edilmiş GhostVM içerisinde çalışır. Bu, kontratın sunucu dosyalarına veya sistem kaynaklarına izinsiz erişimini engeller.
+*  **Determinizm:** Aynı girdi ve aynı mevcut durum (state) ile çalıştırılan bir kontrat, ağdaki her düğümde tam olarak aynı sonucu üretmek zorundadır.
+*  **İşlem Ücretleri:** Ağın suistimal edilmesini önlemek için her kontrat yükleme (Deploy) ve çalıştırma (Call) işlemi GHOST coin ile ücretlendirilir.
+
+*  **2. GhostProtocol Kontratının Anatomisi**
+*  Bir GhostProtocol akıllı kontratı genellikle üç ana bölümden oluşur:
+*  **Init (Başlatma):** Kontrat ağa ilk yüklendiğinde çalışır. Başlangıç değişkenlerini (örneğin; toplam arz, yönetici adresi) tanımlar.
+*  **State (Durum):** Kontratın hafızasıdır. Kimin ne kadar bakiyesi olduğu veya hangi cihazın ne kadar elektrik tükettiği burada tutulur.
+*  **Methods (Metotlar):** Dışarıdan çağrılabilen fonksiyonlardır. Belirli şartlar gerçekleştiğinde (if/else) durumu güncellerler.
+
+*  **3. FaydalarGüven ve Şeffaflık:** Kod açıktır; elektrik faturanızın nasıl hesaplandığını herkes görebilir.
+*  **Otomasyon:** İnsan müdahalesi olmadan ödemeler ve hizmet açma/kapama işlemleri yapılabilir.
+*  **Düşük Maliyet:** Aracı kurumları (bankalar, fatura ödeme merkezleri) ortadan kaldırır.
+
+*  **4. "How-To":** Enerji Sektörü İçin Örnek KontratlarEnerji sektörü, GhostProtocol akıllı kontratları için en verimli uygulama alanlarından biridir. İşte iki temel senaryo:
+  **A. Elektrik Dağıtım Kontratı (Altyapı İzleme)** Bu kontrat, şebekeye verilen toplam elektriği ve kayıp-kaçak oranlarını takip etmek için kullanılır.
+ ``` Python
+# --- Elektrik Dağıtım Kontratı Örneği --- 
+ def init():
+    return {
+        "total_distributed": 0,
+        "active_transformers": [],
+        "admin": "GHST_SYSTEM_ADDR"
+    }
+
+def register_transformer(state, transformer_id):
+    # Yeni bir trafoyu sisteme kaydeder
+    state['active_transformers'].append(transformer_id)
+    return state, f"Transformer {transformer_id} registered."
+
+def log_distribution(state, amount):
+    # Şebekeye verilen enerjiyi kaydeder
+    state['total_distributed'] += int(amount)
+    return state, f"Logged {amount} kWh distribution."
+```
+
+
+ **B. Elektrik Satış ve Perakende Kontratı (Otomatik Fatura)** 
+Bu kontrat, tüketicinin bakiyesinden harcadığı elektrik kadar GHOST coin düşer. Bakiye biterse sistem otomatik olarak "kesme" uyarısı verir.
+
+
+  ```Python
+# --- Elektrik Perakende Satış Kontratı ---
+def init():
+    return {
+        "unit_price": 0.005, # 1 kWh = 0.005 GHOST
+        "users": {} # {user_address: balance_kwh}
+    }
+
+def top_up(state, user_addr, amount_ghost):
+    # Kullanıcı ödeme yaptığında kWh yüklemesi yapar
+    kwh = float(amount_ghost) / state['unit_price']
+    state['users'][user_addr] = state['users'].get(user_addr, 0) + kwh
+    return state, f"Added {kwh} kWh to {user_addr}"
+
+def consume_energy(state, user_addr, kwh_used):
+    # Sayaçtan gelen veriyle bakiyeyi düşer
+    current = state['users'].get(user_addr, 0)
+    if current >= float(kwh_used):
+        state['users'][user_addr] -= float(kwh_used)
+        return state, "Success: Consumption logged."
+    else:
+        return state, "Warning: Insufficient balance. Cut power!"
+```
+
+        
+* **5. Metotlar ve Argümanlar Nasıl Kullanılır?**
+ GhostProtocol arayüzünde (Dashboard) bir kontratla etkileşime geçerken şu adımları izlersiniz:
+ **Contract Address:** Kontratın ağdaki benzersiz kimliği (Örn: CNT8da2...).
+ **Method Name:** Çağırmak istediğiniz fonksiyonun adı (Örn: top_up).
+ **Arguments:** Fonksiyona gönderilecek veriler. Virgülle ayrılarak yazılır.Örnek: GHST_USER_123, 10 (Bu, kullanıcı adresini ve gönderilen 10 GHOST miktarını temsil eder).
+
+* **Mimari Tablo:**
+ **BileşenGöreviGHOST-SDK** Python kodunu ağın anlayacağı işleme dönüştürür.
+ **Validation Layer** Kodun içinde sonsuz döngü veya zararlı kütüphane olup olmadığını denetler.
+ **State Storage** Kontrat verilerini SQLite tabanlı yerel Ghost DB'de saklar.
+
+  GhostProtocol akıllı kontratları, sadece birer kod parçası değil; elektrikten veriye, finanstan sosyal medyaya kadar her türlü dijital etkileşimin anayasasıdır. Python'un sadeliği ve Blockchain'in sarsılmaz güvenliği bu noktada birleşir.
+
+
+<a name="-englishc">
+## 🇬🇧 English</a>
+
+* **GhostProtocol Smart Contract Architecture:** 
+The Programmable FutureThe GhostProtocol project envisions decentralization not just as a data storage tool, but as a self-sustaining, uncensorable, and programmable digital ecosystem. At the heart of this ecosystem lies the GhostVM (Ghost Virtual Machine), which ensures that Smart Contracts run in a secure and isolated environment. The following technical article covers the smart contract architecture of GhostProtocol, its operating principles, and specific use cases for the energy sector.
+
+* **1. Smart Contract Logic and Architecture**
+  GhostProtocol smart contracts operate on the principle of "State Machines." Every contract has its own isolated database (State) and specific code blocks (Methods) designed to modify that state.
+* **GhostVM:** Contracts execute within the GhostVM, isolated from the main server core. This prevents a contract from accessing server files or system resources without authorization.
+* **Determinism:** A contract executed with the same input and the same current state must produce exactly the same result on every node in the network.
+* **Transaction Fees:** To prevent network abuse, every contract deployment (Deploy) and execution (Call) is charged in GHOST coins.
+
+* **2. Anatomy of a GhostProtocol Contract**
+  A GhostProtocol smart contract generally consists of three main sections: **Init (Initialization):** Runs only once when the contract is first deployed to the network. It defines initial variables (e.g., total supply, admin address). **State:** The memory of the contract. This is where data, such as user balances or energy consumption metrics, is stored. **Methods:** Functions that can be called externally. They update the state based on specific conditions (if/else logic).
+
+* **3. Key Benefits; Trust and Transparency:** The code is open; anyone can verify how an electricity bill is calculated. **Automation:** Payments and service activations/deactivations can be handled automatically without human intervention. **Reduced Costs:** It eliminates intermediaries such as banks or centralized billing centers.
+
+* **4. "How-To":** Example Contracts for the Energy SectorThe energy sector is one of the most efficient application areas for GhostProtocol smart contracts. Here are two primary scenarios:
+  **A. Electricity Distribution Contract (Infrastructure Monitoring)** This contract is used to track the total electricity supplied to the grid and monitor loss/leakage rates.
+  
+ ``` Python
+# --- Distribution Contract Example ---
+def init():
+    return {
+        "total_distributed": 0,
+        "active_transformers": [],
+        "admin": "GHST_SYSTEM_ADDR"
+    }
+
+def register_transformer(state, transformer_id):
+    # Registers a new transformer to the system
+    state['active_transformers'].append(transformer_id)
+    return state, f"Transformer {transformer_id} registered."
+
+def log_distribution(state, amount):
+    # Records the energy distributed to the grid
+    state['total_distributed'] += int(amount)
+    return state, f"Logged {amount} kWh distribution."
+```
+
+
+**B. Electricity Sales and Retail Contract (Automated Billing)** This contract automatically deducts GHOST coins from a consumer's balance based on their electricity usage. If the balance runs out, the system triggers a "disconnection" warning.
+
+``` Python
+
+# --- Retail Sales Contract ---
+def init():
+    return {
+        "unit_price": 0.005, # 1 kWh = 0.005 GHOST
+        "users": {} # {user_address: balance_kwh}
+    }
+
+def top_up(state, user_addr, amount_ghost):
+    # Converts GHOST payment into kWh credits
+    kwh = float(amount_ghost) / state['unit_price']
+    state['users'][user_addr] = state['users'].get(user_addr, 0) + kwh
+    return state, f"Added {kwh} kWh to {user_addr}"
+
+def consume_energy(state, user_addr, kwh_used):
+    # Logs consumption and deducts from balance
+    current = state['users'].get(user_addr, 0)
+    if current >= float(kwh_used):
+        state['users'][user_addr] -= float(kwh_used)
+        return state, "Success: Consumption logged."
+    else:
+        return state, "Warning: Insufficient balance. Cut power!"
+```
+
+        
+* **5. How to Use Methods and Arguments**
+  When interacting with a contract via the GhostProtocol Dashboard, you use the following parameters: **Contract Address:** The unique identifier of the contract on the network (e.g., CNT8da2...). **Method Name:** The name of the function you wish to trigger (e.g., top_up). **Arguments:** Data passed to the function, separated by commas. Example: GHST_USER_123, 10 (Represents the user address and the 10 GHOST amount sent).
+**Architectural Overview:** **GHOST-SDK**, Translates Python code into network-readable transactions. **Validation Layer** Checks code for infinite loops or restricted libraries. **State Storage** Stores contract data in the local SQLite-based Ghost DB.
+GhostProtocol smart contracts are more than just snippets of code; they are the constitution for all digital interactions—from energy and data to finance and social media. They merge the simplicity of Python with the unshakeable security of Blockchain.
+
+---
 
 # ⚠️ Disclaimer / Yasal Uyarı
 GhostProtocol is an experimental software designed for educational and research purposes. Use at your own risk. (GhostProtocol eğitim ve araştırma amaçlı tasarlanmış deneysel bir yazılımdır. Kullanım riski size aittir.)
