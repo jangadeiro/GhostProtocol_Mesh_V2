@@ -485,6 +485,8 @@ def consume_energy(state, user_addr, kwh_used):
 **Architectural Overview:** **GHOST-SDK**, Translates Python code into network-readable transactions. **Validation Layer** Checks code for infinite loops or restricted libraries. **State Storage** Stores contract data in the local SQLite-based Ghost DB.
 GhostProtocol smart contracts are more than just snippets of code; they are the constitution for all digital interactions—from energy and data to finance and social media. They merge the simplicity of Python with the unshakeable security of Blockchain.
 
+If you need more details on develop and using Smart Contracts on the GhostProtocol Blockchain network: <a href="SmartContracts_Guide.md">Smart Contract Developing and Usage Guide</a>
+
 ---
 
 # ⚠️ Disclaimer / Yasal Uyarı
