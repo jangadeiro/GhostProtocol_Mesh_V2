@@ -408,7 +408,7 @@ def consume_energy(state, user_addr, kwh_used):
 
   GhostProtocol akıllı kontratları, sadece birer kod parçası değil; elektrikten veriye, finanstan sosyal medyaya kadar her türlü dijital etkileşimin anayasasıdır. Python'un sadeliği ve Blockchain'in sarsılmaz güvenliği bu noktada birleşir.
 
-
+GhostProtocol Blockchain ağında Akıllı Kontrat oluşturmak ve kullanmak için daha fazla detaya ihtiyacınız varsa: <a href="SmartContracts_Guide.md">Akıllı Kontrat Oluşturma ve Kullanma Rehberi</a>
 
 
 <a name="-englishc">
