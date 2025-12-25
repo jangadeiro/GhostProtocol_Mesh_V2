@@ -80,6 +80,10 @@ INVITE_FEE = 0.00001
 CONTRACT_DEPLOY_FEE = 2.0         
 CONTRACT_CALL_FEE = 0.001         
 
+# TR: Ağ gelirlerinin birikeceği Hazine Cüzdanı Adresi
+# EN: Treasury Wallet Address where network revenues will accumulate
+TREASURY_WALLET_KEY = "GHST_NETWORK_TREASURY_VAULT"
+
 KNOWN_PEERS = ["46.101.219.46", "68.183.12.91"] 
 
 app = Flask(__name__)
@@ -261,6 +265,15 @@ class DatabaseManager:
             genesis_hash = hashlib.sha256(b'GhostGenesis').hexdigest()
             c.execute("INSERT INTO blocks (block_index, timestamp, previous_hash, block_hash, proof, miner_key) VALUES (?, ?, ?, ?, ?, ?)",
                        (1, time.time(), '0', genesis_hash, 100, 'GhostProtocol_System'))
+        
+        # TR: Sistem Hazine Cüzdanını oluştur (Gelirlerin birikeceği yer)
+        # EN: Create System Treasury Wallet (Where revenue accumulates)
+        if c.execute("SELECT COUNT(*) FROM users WHERE wallet_public_key = ?", (TREASURY_WALLET_KEY,)).fetchone()[0] == 0:
+            # TR: Şifre önemsizdir, bu hesaba sadece kod ile erişilir.
+            # EN: Password is irrelevant, this account is accessed only via code.
+            c.execute("INSERT INTO users (username, password, wallet_public_key, balance) VALUES (?, ?, ?, ?)",
+                      ('Network_Treasury', 'sys_locked_v1', TREASURY_WALLET_KEY, 0.0))
+
         conn.commit()
         conn.close()
 
@@ -268,8 +281,6 @@ class DatabaseManager:
         conn = self.get_connection()
         res = conn.execute("SELECT amount FROM network_fees WHERE fee_type = ?", (fee_type,)).fetchone()
         conn.close()
-        # TR: Float dönüşümü ekledik
-        # EN: Added float conversion
         return float(res['amount']) if res else 0.0
 
 # --- MANAGER SINIFLARI / MANAGER CLASSES ---
@@ -281,14 +292,10 @@ class SmartContractManager:
         self.vm = vm
 
     def deploy_contract(self, owner_key, code):
-        # TR: Ücreti float olarak al
-        # EN: Get fee as float
         fee = self.db.get_fee('contract_deploy')
         conn = self.db.get_connection()
         try:
             user = conn.execute("SELECT balance FROM users WHERE wallet_public_key=?",(owner_key,)).fetchone()
-            # TR: Bakiye kontrolünü float olarak yap
-            # EN: Check balance as float
             if not user or float(user['balance']) < fee: return False, f"Low Balance ({fee} GHOST)"
 
             valid, msg = self.vm.validate_code(code)
@@ -302,9 +309,14 @@ class SmartContractManager:
 
             conn.execute("INSERT INTO contracts (contract_address, owner_key, code, state, creation_time) VALUES (?,?,?,?,?)",
                          (contract_address, owner_key, code, state_json, timestamp))
+            
+            # TR: Ücreti kullanıcıdan düş ve Hazine'ye ekle
+            # EN: Deduct fee from user and add to Treasury
             conn.execute("UPDATE users SET balance = balance - ? WHERE wallet_public_key = ?", (fee, owner_key))
+            conn.execute("UPDATE users SET balance = balance + ? WHERE wallet_public_key = ?", (fee, TREASURY_WALLET_KEY))
+            
             conn.execute("INSERT INTO transactions (tx_id, sender, recipient, amount, timestamp) VALUES (?, ?, ?, ?, ?)",
-                         (str(uuid4()), owner_key, "Fee_Collector", fee, timestamp))
+                         (str(uuid4()), owner_key, TREASURY_WALLET_KEY, fee, timestamp))
             conn.commit()
             return True, contract_address
         except Exception as e: return False, str(e)
@@ -317,10 +329,10 @@ class SmartContractManager:
             contract = conn.execute("SELECT * FROM contracts WHERE contract_address=?",(contract_address,)).fetchone()
             if not contract: return False, "Contract not found."
             
-            # TR: Transfer ve bakiye kontrolü
-            # EN: Transfer and balance check
-            success, msg = self.chain_mgr.transfer_coin(sender_key, "Fee_Collector", fee)
-            if not success: return False, f"Low Balance ({fee} GHOST)"
+            # TR: Bakiye kontrolü
+            # EN: Balance check
+            user = conn.execute("SELECT balance FROM users WHERE wallet_public_key=?", (sender_key,)).fetchone()
+            if not user or float(user['balance']) < fee: return False, f"Low Balance ({fee} GHOST)"
 
             current_state = json.loads(contract['state'])
             args_list = [x.strip() for x in args.split(',') if x.strip()]
@@ -334,6 +346,14 @@ class SmartContractManager:
             if result['success']:
                 new_state_json = json.dumps(result['new_state'])
                 conn.execute("UPDATE contracts SET state = ? WHERE contract_address = ?", (new_state_json, contract_address))
+                
+                # TR: Ücreti Hazine'ye aktar
+                # EN: Transfer fee to Treasury
+                conn.execute("UPDATE users SET balance = balance - ? WHERE wallet_public_key = ?", (fee, sender_key))
+                conn.execute("UPDATE users SET balance = balance + ? WHERE wallet_public_key = ?", (fee, TREASURY_WALLET_KEY))
+                conn.execute("INSERT INTO transactions (tx_id, sender, recipient, amount, timestamp) VALUES (?, ?, ?, ?, ?)",
+                             (str(uuid4()), sender_key, TREASURY_WALLET_KEY, fee, time.time()))
+                
                 conn.commit()
                 return True, str(result['result'])
             else: return False, result['error']
@@ -353,14 +373,10 @@ class MessengerManager:
         self.mesh_mgr = mesh_mgr
 
     def send_invite(self, sender_key, friend_username):
-        # TR: Ücreti float al
-        # EN: Get fee as float
         fee = self.db.get_fee('invite_fee')
         conn = self.db.get_connection()
         try:
             sender = conn.execute("SELECT balance FROM users WHERE wallet_public_key = ?", (sender_key,)).fetchone()
-            # TR: Float karşılaştırması ile bakiye kontrolü (HATA DÜZELTMESİ)
-            # EN: Balance check with float comparison (BUG FIX)
             if not sender or float(sender['balance']) < fee:
                 return False, f"Low Balance ({fee} GHOST)"
 
@@ -373,11 +389,12 @@ class MessengerManager:
             conn.execute("INSERT OR REPLACE INTO friends (user_key, friend_key, status) VALUES (?, ?, ?)", (sender_key, friend_key, 'accepted'))
             conn.execute("INSERT OR REPLACE INTO friends (user_key, friend_key, status) VALUES (?, ?, ?)", (friend_key, sender_key, 'accepted'))
             
-            # TR: Bakiyeyi güncelle
-            # EN: Update balance
+            # TR: Bakiyeyi Hazineye aktar
+            # EN: Transfer balance to Treasury
             conn.execute("UPDATE users SET balance = balance - ? WHERE wallet_public_key = ?", (fee, sender_key))
+            conn.execute("UPDATE users SET balance = balance + ? WHERE wallet_public_key = ?", (fee, TREASURY_WALLET_KEY))
             conn.execute("INSERT INTO transactions (tx_id, sender, recipient, amount, timestamp) VALUES (?, ?, ?, ?, ?)",
-                         (str(uuid4()), sender_key, "Messenger_Fee", fee, time.time()))
+                         (str(uuid4()), sender_key, TREASURY_WALLET_KEY, fee, time.time()))
             
             conn.commit()
             return True, "Friend Added."
@@ -388,8 +405,6 @@ class MessengerManager:
         conn = self.db.get_connection()
         try:
             sender = conn.execute("SELECT balance FROM users WHERE wallet_public_key = ?", (sender_key,)).fetchone()
-            # TR: Float karşılaştırması ile bakiye kontrolü (HATA DÜZELTMESİ)
-            # EN: Balance check with float comparison (BUG FIX)
             if not sender or float(sender['balance']) < fee:
                 return False, f"Low Balance ({fee} GHOST)"
 
@@ -399,9 +414,13 @@ class MessengerManager:
 
             conn.execute("INSERT INTO messages (msg_id, sender, recipient, content, asset_id, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
                          (msg_id, sender_key, recipient_key, encrypted_content, asset_id, timestamp))
+            
+            # TR: Ücreti Hazineye aktar
+            # EN: Transfer fee to Treasury
             conn.execute("UPDATE users SET balance = balance - ? WHERE wallet_public_key = ?", (fee, sender_key))
+            conn.execute("UPDATE users SET balance = balance + ? WHERE wallet_public_key = ?", (fee, TREASURY_WALLET_KEY))
             conn.execute("INSERT INTO transactions (tx_id, sender, recipient, amount, timestamp) VALUES (?, ?, ?, ?, ?)",
-                         (str(uuid4()), sender_key, "Messenger_Fee", fee, timestamp))
+                         (str(uuid4()), sender_key, TREASURY_WALLET_KEY, fee, timestamp))
             conn.commit()
             
             msg_data = {'type': 'message', 'msg_id': msg_id, 'sender': sender_key, 'recipient': recipient_key, 'content': encrypted_content, 'asset_id': asset_id, 'timestamp': timestamp}
@@ -460,8 +479,6 @@ class AssetManager:
         conn = self.db.get_connection()
         user = conn.execute("SELECT balance FROM users WHERE wallet_public_key = ?", (owner_key,)).fetchone()
         
-        # TR: Bakiye kontrolü düzeltildi (Float)
-        # EN: Balance check fixed (Float)
         if not user or float(user['balance']) < fee: 
              conn.close()
              return False, f"Low Balance ({fee} GHOST)"
@@ -469,9 +486,14 @@ class AssetManager:
         try:
             conn.execute("INSERT OR REPLACE INTO assets (asset_id, owner_pub_key, type, name, content, storage_size, creation_time, expiry_time, keywords) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                          (str(uuid4()), owner_key, asset_type, name, content_bytes, size, time.time(), time.time() + DOMAIN_EXPIRY_SECONDS, keywords))
+            
+            # TR: Ücreti kullanıcıdan al, Hazineye ekle
+            # EN: Take fee from user, add to Treasury
             conn.execute("UPDATE users SET balance = balance - ? WHERE wallet_public_key = ?", (fee, owner_key))
+            conn.execute("UPDATE users SET balance = balance + ? WHERE wallet_public_key = ?", (fee, TREASURY_WALLET_KEY))
             conn.execute("INSERT INTO transactions (tx_id, sender, recipient, amount, timestamp) VALUES (?, ?, ?, ?, ?)",
-                         (str(uuid4()), owner_key, "Asset_Fee_Collector", fee, time.time()))
+                         (str(uuid4()), owner_key, TREASURY_WALLET_KEY, fee, time.time()))
+            
             conn.commit()
             return True, "Success"
         except Exception as e: return False, str(e)
@@ -645,20 +667,15 @@ class BlockchainManager:
 
     def transfer_coin(self, sender_key, recipient_key, amount):
         if sender_key == recipient_key: return False, "Kendinize gönderemezsiniz."
-        # TR: Miktarı float olarak al
-        # EN: Get amount as float
         amount = float(amount)
         if amount <= 0: return False, "Miktar 0'dan büyük olmalı."
 
         conn = self.db.get_connection()
         try:
             sender = conn.execute("SELECT balance FROM users WHERE wallet_public_key = ?", (sender_key,)).fetchone()
-            # TR: Float karşılaştırması
-            # EN: Float comparison
             if not sender or float(sender['balance']) < amount: return False, "Yetersiz bakiye."
             
             conn.execute("UPDATE users SET balance = balance - ? WHERE wallet_public_key = ?", (amount, sender_key))
-            # Alıcıya ekle (Anlık)
             conn.execute("UPDATE users SET balance = balance + ? WHERE wallet_public_key = ?", (amount, recipient_key))
             
             tx_id = str(uuid4())
